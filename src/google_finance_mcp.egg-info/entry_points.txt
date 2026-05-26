@@ -1,0 +1,2 @@
+[console_scripts]
+google-finance-mcp = google_finance_mcp.server:main
