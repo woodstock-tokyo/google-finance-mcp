@@ -47,6 +47,7 @@ async def test_dynamic_tool_uses_rpc_purpose(monkeypatch: pytest.MonkeyPatch) ->
     assert "google_finance_ds_8_market_movers" in names
     tool = next(tool for tool in tools if tool.name == "google_finance_ds_8_market_movers")
     assert "Market movers" in tool.description
+    assert "Market mover lists by category, count, and offset." in tool.description
     assert "changedHash" in tool.description
 
 

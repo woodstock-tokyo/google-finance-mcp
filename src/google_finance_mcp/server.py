@@ -251,10 +251,11 @@ def dataset_key_from_tool_name(tool_name: str) -> str | None:
 
 
 def _dynamic_tool(dataset_key: str, rpc_id: str, request: JSONValue, metadata: EndpointMetadata) -> Tool:
+    explanation = f" {metadata.description}" if metadata.description else ""
     return Tool(
         name=dataset_tool_name(dataset_key, metadata),
         description=(
-            f"Call Google Finance {metadata.purpose} endpoint {dataset_key}. "
+            f"Call Google Finance {metadata.purpose} endpoint {dataset_key}.{explanation} "
             f"The current live id/hash from AF_dataServiceRequests is {rpc_id}. "
             f"Request shape: {metadata.request_shape}. "
             f"Default request: {json.dumps(request, separators=(',', ':'))}"

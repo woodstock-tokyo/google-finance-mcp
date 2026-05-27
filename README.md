@@ -47,20 +47,23 @@ POST body, and it may change over time. Do not build clients against a hardcoded
   opt into `endpoint_family: "finhub"`.
 - `google_finance_batch_call`: call multiple RPC IDs in one batchexecute POST.
   Explicit batch calls use the same `endpoint_family` option.
-- `google_finance_ds_N_<purpose>`: dynamic tools generated from the current
-  mapping, one for each advertised dataset key. The `ds:N` key is the exported
-  interface identity; the current live `id`/hash is read from
-  `AF_dataServiceRequests` whenever the mapping is refreshed.
+- `google_finance_ds_N_<purpose>`: dynamic tools generated only from the
+  current `/finance/beta` home-page mapping, one for each advertised beta
+  dataset key. The `ds:N` key is the exported interface identity; the current
+  live `id`/hash is read from `AF_dataServiceRequests` whenever the mapping is
+  refreshed. Classic and quote-page endpoints are not exposed as generated
+  tools; use the page/quote dataset tools or explicit RPC tools for those.
 
 The article's IDs such as `xh8wxf`, `HqGpWd`, and `YtbmEe` are kept only as
 reference examples. Calls use the live `id` currently associated with each
 `ds:N` entry.
 
-## Current beta endpoints
+## Generated beta tools
 
-These meanings were verified against the live beta page on 2026-05-26. The
-`id` values below are examples from that run and can change; the server refreshes
-them from `AF_dataServiceRequests`.
+These generated tools are for the Google Finance beta home page only
+(`/finance/beta`). The meanings were verified against the live beta page on
+2026-05-26. The `id` values below are examples from that run and can change; the
+server refreshes them from `AF_dataServiceRequests`.
 
 | Dataset | Example live id | Generated tool | Meaning | Default request |
 | --- | --- | --- | --- | --- |
@@ -77,7 +80,48 @@ them from `AF_dataServiceRequests`.
 | `ds:10` | `X12h2b` | `google_finance_ds_10_empty_initialization_endpoint` | Empty initialization endpoint | `[]` |
 | `ds:11` | `vNewwe` | `google_finance_ds_11_equity_sectors_metadata` | Equity sectors metadata | `[]` |
 
-## Response handling
+## Quote-page dataset discovery
+
+Classic quote URLs such as `/finance/quote/GOOGL:NASDAQ` are accepted by the
+server and currently redirect to `/finance/beta/quote/GOOGL:NASDAQ`. That
+redirected quote page advertises `ds:0` through `ds:18`. These are not generated
+`google_finance_ds_N_<purpose>` tools; call them with
+`google_finance_call_quote_dataset` or `google_finance_call_page_dataset`.
+
+These meanings were discovered from the live quote page and response payloads on
+2026-05-27 using `GOOGL:NASDAQ`. The `id` values are examples from that run and
+can change.
+
+| Dataset | Example live id | Meaning | Default request shape | Notes |
+| --- | --- | --- | --- | --- |
+| `ds:0` | `hgueg` | Market overview quotes | `[1]` | Symbol-independent market quote groups. |
+| `ds:1` | `vNewwe` | Equity sectors | `[null,[null,1]]` | Sector performance list. |
+| `ds:2` | `gCvqoe` | Quote summary | `[[tuple],1]` | Main quote payload for the requested security. |
+| `ds:3` | `JL8oKc` | Company profile | `[[tuple]]` | Long company/security profile and descriptive fields. |
+| `ds:4` | `SICF5d` | Related securities | `[tuple,4]` | Peer/related quote cards for comparison. |
+| `ds:5` | `XxQsbd` | Earnings history and estimates | `[[tuple],1]` | Quarterly rows with actual and estimated revenue/EPS fields. |
+| `ds:6` | `dlNq8b` | Security overview card | `[[tuple],1,1,1]` | Price, market cap, industry, logo, and summary quote fields. |
+| `ds:7` | `c2u4wc` | Intraday chart points | `[[tuple],1]` | Minute-level price points. |
+| `ds:8` | `c2u4wc` | Intraday OHLCV chart | `[[tuple],1,null,null,null,null,null,1]` | Intraday candle rows with open, close, high, low, timestamp, and volume. |
+| `ds:9` | `c2u4wc` | One-month chart points | `[[tuple],3]` | Daily price points. |
+| `ds:10` | `c2u4wc` | One-month OHLCV chart | `[[tuple],3,null,null,null,null,null,1]` | Daily candle rows with open, close, high, low, timestamp, and volume. |
+| `ds:11` | `gXxkFd` | Key statistics / ratios | `[["SYMBOL","EXCHANGE"]]` | Compact numeric ratio vector; individual field labels still need mapping. |
+| `ds:12` | `gCvqoe` | Quote summary alternate | `[[tuple]]` | Quote payload without the trailing mode flag. |
+| `ds:13` | `Pr8h2e` | Financials / estimates | `[[tuple],null,1]` | Financial statement and estimate arrays. |
+| `ds:14` | `kA4MVd` | Market news feed | `[2,12,[tuple]]` | General market or related news list. |
+| `ds:15` | `kA4MVd` | Security news feed | `[5,12,[tuple]]` | Company/security-specific article list. |
+| `ds:16` | `RiQiSd` | Empty initialization endpoint | `[]` | Observed across equity, ETF, index, crypto, and FX quote pages; returns `[]`. |
+| `ds:17` | `X12h2b` | Empty initialization endpoint | `[]` | Observed across equity, ETF, index, crypto, and FX quote pages; returns `[]`. |
+| `ds:18` | `vNewwe` | Equity sectors metadata | `[]` | Empty request that returns sector metadata. |
+
+`ds:16` and `ds:17` were specifically crawled across quote pages including
+`GOOGL:NASDAQ`, `NVDA:NASDAQ`, `SPY:NYSEARCA`, `.INX:INDEXSP`,
+`BTC-USD:CCY`, and `EUR-USD:CCY`. In each case the page advertised the same
+request shape, `[]`, and batchexecute returned an empty data array. Market,
+search, portfolio, and watchlist routes redirected to the beta home page and did
+not expose `ds:16` or `ds:17`.
+
+## Endpoint handling
 
 Classic explicit RPC calls use:
 
@@ -91,6 +135,13 @@ endpoint associated with the page mapping:
 ```text
 https://www.google.com/finance/beta/_/FinHubUi/data/batchexecute
 ```
+
+Generated `google_finance_ds_N_<purpose>` tools are intentionally limited to the
+beta home page. Other pages, including quote pages or classic `/finance/...`
+paths, can still be inspected with `google_finance_list_page_rpcs` or
+`google_finance_list_quote_rpcs` and called with
+`google_finance_call_page_dataset`, `google_finance_call_quote_dataset`,
+`google_finance_call_rpc`, or `google_finance_batch_call`.
 
 The request body is a URL-encoded `f.req` value containing batched RPC calls.
 Responses are Google batchexecute frames; the server strips the anti-JSON prefix,

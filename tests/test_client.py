@@ -71,9 +71,11 @@ def test_quote_page_mapping_uses_quote_metadata() -> None:
     )
 
     assert mapping.source_path == "/finance/beta/quote/NVDA:NASDAQ"
-    assert mapping.requests["ds:2"].metadata.purpose == "Quote"
-    assert mapping.requests["ds:2"].metadata.source == "google-finance-quote-request-shape"
-    assert mapping.requests["ds:3"].metadata.purpose == "Security tuple endpoint"
+    assert mapping.requests["ds:2"].metadata.purpose == "Quote summary"
+    assert mapping.requests["ds:2"].metadata.source == "google-finance-quote-dataset-key"
+    assert mapping.requests["ds:2"].metadata.description == "Main quote payload for the requested security."
+    assert mapping.requests["ds:3"].metadata.purpose == "Company profile"
+    assert mapping.requests["ds:3"].metadata.description == "Long company/security profile and descriptive fields."
 
 
 def test_classic_page_mapping_uses_google_finance_ui_endpoint() -> None:

@@ -16,6 +16,7 @@ class EndpointMetadata:
     request_shape: str
     slug: str
     source: str
+    description: str = ""
     reference_rpc_ids: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, JSONValue]:
@@ -26,6 +27,7 @@ class EndpointMetadata:
             "request_shape": self.request_shape,
             "slug": self.slug,
             "source": self.source,
+            "description": self.description,
             "reference_rpc_ids": list(self.reference_rpc_ids),
         }
 
@@ -62,19 +64,70 @@ ARTICLE_REFERENCE_RPC_PURPOSES: dict[str, dict[str, str]] = {
 }
 
 
-BETA_DATASET_PURPOSES: dict[str, tuple[str, str]] = {
-    "ds:0": ("Market overview quotes", "[1]"),
-    "ds:1": ("Equity sectors", "[null, [null, 1]]"),
-    "ds:2": ("Earnings calendar", "[1, 0, 2]"),
-    "ds:3": ("Earnings calendar secondary", "[3, 1]"),
-    "ds:4": ("Market overview charts", "[0]"),
-    "ds:5": ("Market summary news clusters", '["market_summary", 1]'),
-    "ds:6": ("Top finance articles", "[8]"),
-    "ds:7": ("Market news", "[2, 20]"),
-    "ds:8": ("Market movers", "[[categories], count, offset]"),
-    "ds:9": ("Empty initialization endpoint", "[]"),
-    "ds:10": ("Empty initialization endpoint", "[]"),
-    "ds:11": ("Equity sectors metadata", "[]"),
+BETA_DATASET_PURPOSES: dict[str, tuple[str, str, str]] = {
+    "ds:0": ("Market overview quotes", "[1]", "Symbol-independent market quote groups for the beta home page."),
+    "ds:1": ("Equity sectors", "[null, [null, 1]]", "Sector performance list."),
+    "ds:2": ("Earnings calendar", "[1, 0, 2]", "Upcoming and recent earnings calendar entries."),
+    "ds:3": ("Earnings calendar secondary", "[3, 1]", "Secondary earnings calendar request; currently returns little or no data."),
+    "ds:4": ("Market overview charts", "[0]", "Market overview chart data with SVG sparklines."),
+    "ds:5": ("Market summary news clusters", '["market_summary", 1]', "Clustered market summary news cards."),
+    "ds:6": ("Top finance articles", "[8]", "Top finance article list."),
+    "ds:7": ("Market news", "[2, 20]", "Market news feed."),
+    "ds:8": ("Market movers", "[[categories], count, offset]", "Market mover lists by category, count, and offset."),
+    "ds:9": ("Empty initialization endpoint", "[]", "Initialization request that returns an empty payload."),
+    "ds:10": ("Empty initialization endpoint", "[]", "Initialization request that returns an empty payload."),
+    "ds:11": ("Equity sectors metadata", "[]", "Empty request that returns sector metadata."),
+}
+
+
+QUOTE_PAGE_DATASET_PURPOSES: dict[str, tuple[str, str, str]] = {
+    "ds:0": ("Market overview quotes", "[1]", "Symbol-independent market quote groups."),
+    "ds:1": ("Equity sectors", "[null, [null, 1]]", "Sector performance list."),
+    "ds:2": ("Quote summary", "[[tuple], 1]", "Main quote payload for the requested security."),
+    "ds:3": ("Company profile", "[[tuple]]", "Long company/security profile and descriptive fields."),
+    "ds:4": ("Related securities", "[tuple, 4]", "Peer and related quote cards for comparison."),
+    "ds:5": (
+        "Earnings history and estimates",
+        "[[tuple], 1]",
+        "Quarterly rows with actual and estimated revenue/EPS fields.",
+    ),
+    "ds:6": (
+        "Security overview card",
+        "[[tuple], 1, 1, 1]",
+        "Price, market cap, industry, logo, and summary quote fields.",
+    ),
+    "ds:7": ("Intraday chart points", "[[tuple], 1]", "Minute-level price points."),
+    "ds:8": (
+        "Intraday OHLCV chart",
+        "[[tuple], 1, null, null, null, null, null, 1]",
+        "Intraday candle rows with open, close, high, low, timestamp, and volume.",
+    ),
+    "ds:9": ("One-month chart points", "[[tuple], 3]", "Daily price points."),
+    "ds:10": (
+        "One-month OHLCV chart",
+        "[[tuple], 3, null, null, null, null, null, 1]",
+        "Daily candle rows with open, close, high, low, timestamp, and volume.",
+    ),
+    "ds:11": (
+        "Key statistics / ratios",
+        '[["SYMBOL", "EXCHANGE"]]',
+        "Compact numeric ratio vector; individual field labels still need mapping.",
+    ),
+    "ds:12": ("Quote summary alternate", "[[tuple]]", "Quote payload without the trailing mode flag."),
+    "ds:13": ("Financials / estimates", "[[tuple], null, 1]", "Financial statement and estimate arrays."),
+    "ds:14": ("Market news feed", "[2, 12, [tuple]]", "General market or related news list."),
+    "ds:15": ("Security news feed", "[5, 12, [tuple]]", "Company/security-specific article list."),
+    "ds:16": (
+        "Empty initialization endpoint",
+        "[]",
+        "Quote-page initialization request observed across equity, ETF, index, crypto, and FX pages; returns an empty payload.",
+    ),
+    "ds:17": (
+        "Empty initialization endpoint",
+        "[]",
+        "Quote-page initialization request observed across equity, ETF, index, crypto, and FX pages; returns an empty payload.",
+    ),
+    "ds:18": ("Equity sectors metadata", "[]", "Empty request that returns sector metadata."),
 }
 
 
@@ -86,6 +139,24 @@ def metadata_for_dataset(
     source_path: str = "/finance/beta",
 ) -> EndpointMetadata:
     if "/quote/" in source_path:
+        quote_purpose = QUOTE_PAGE_DATASET_PURPOSES.get(dataset_key)
+        if quote_purpose:
+            purpose, request_shape, description = quote_purpose
+            return EndpointMetadata(
+                dataset_key=dataset_key,
+                current_rpc_id=current_rpc_id,
+                purpose=purpose,
+                request_shape=request_shape,
+                slug=_slug(purpose),
+                source="google-finance-quote-dataset-key",
+                description=description,
+                reference_rpc_ids=tuple(
+                    rpc_id
+                    for rpc_id, metadata in ARTICLE_REFERENCE_RPC_PURPOSES.items()
+                    if metadata["purpose"] == purpose
+                ),
+            )
+
         if current_rpc_id == "gCvqoe" and _is_quote_request(request):
             return EndpointMetadata(
                 dataset_key=dataset_key,
@@ -94,6 +165,7 @@ def metadata_for_dataset(
                 request_shape="[[tuple], 1] or [[tuple]]",
                 slug="quote",
                 source="google-finance-quote-request-shape",
+                description="Main quote payload for the requested security.",
                 reference_rpc_ids=("xh8wxf",),
             )
 
@@ -105,6 +177,7 @@ def metadata_for_dataset(
                 request_shape="[[tuple]]",
                 slug="security_tuple_endpoint",
                 source="google-finance-quote-request-shape",
+                description="Company/security tuple endpoint inferred from the request shape.",
                 reference_rpc_ids=("HqGpWd", "uwlMvd", "o6pODe", "yYvDpf"),
             )
 
@@ -118,6 +191,7 @@ def metadata_for_dataset(
                 request_shape=request_shape,
                 slug=_slug(purpose),
                 source="google-finance-quote-request-shape",
+                description="Purpose inferred from the live quote-page request shape.",
                 reference_rpc_ids=reference_rpc_ids,
             )
 
@@ -128,11 +202,12 @@ def metadata_for_dataset(
             request_shape=_request_shape(request),
             slug=f"quote_page_{dataset_key.replace(':', '_')}",
             source="google-finance-quote-dataset-key",
+            description="Quote-page dataset discovered from AF_dataServiceRequests; purpose is not mapped yet.",
         )
 
     beta_purpose = BETA_DATASET_PURPOSES.get(dataset_key)
     if beta_purpose:
-        purpose, request_shape = beta_purpose
+        purpose, request_shape, description = beta_purpose
         return EndpointMetadata(
             dataset_key=dataset_key,
             current_rpc_id=current_rpc_id,
@@ -140,6 +215,7 @@ def metadata_for_dataset(
             request_shape=request_shape,
             slug=_slug(purpose),
             source="google-finance-beta-dataset-key",
+            description=description,
             reference_rpc_ids=tuple(
                 rpc_id for rpc_id, metadata in ARTICLE_REFERENCE_RPC_PURPOSES.items() if metadata["purpose"] == purpose
             ),
@@ -155,6 +231,7 @@ def metadata_for_dataset(
             request_shape=request_shape,
             slug=_slug(purpose),
             source="live-af_dataServiceRequests-request-shape",
+            description="Purpose inferred from the live request shape.",
             reference_rpc_ids=reference_rpc_ids,
         )
 
@@ -165,6 +242,7 @@ def metadata_for_dataset(
         request_shape="Discovered from AF_dataServiceRequests; purpose not inferred from request shape.",
         slug=dataset_key.replace(":", "_"),
         source="live-af_dataServiceRequests",
+        description="Dataset discovered from AF_dataServiceRequests; purpose is not mapped yet.",
     )
 
 
