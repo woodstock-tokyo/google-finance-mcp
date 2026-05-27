@@ -2,8 +2,10 @@
 
 MCP server for Google Finance's internal `batchexecute` RPC endpoint.
 
-The server first fetches `https://www.google.com/finance/beta`, extracts
-`AF_initDataKeys` and `AF_dataServiceRequests`, and uses the page's cache
+The server fetches Google Finance pages such as
+`https://www.google.com/finance/beta` or
+`https://www.google.com/finance/beta/quote/NVDA:NASDAQ`, extracts
+`AF_initDataKeys` and `AF_dataServiceRequests`, and uses each page's cache
 headers to decide when the internal RPC mapping must be refreshed.
 
 ## Mapping model
@@ -28,10 +30,23 @@ POST body, and it may change over time. Do not build clients against a hardcoded
   `AF_dataServiceRequests` mapping, enriched with inferred purpose metadata.
 - `google_finance_list_known_rpc_purposes`: return the article's reference RPC
   ID to purpose table. These IDs are not treated as stable.
-- `google_finance_refresh_mapping`: force or revalidate the mapping cache.
-- `google_finance_call_dataset`: call any advertised `ds:*` dataset by key.
+- `google_finance_refresh_mapping`: force or revalidate a page mapping cache.
+- `google_finance_call_dataset`: call any advertised home-page `ds:*` dataset
+  by key.
+- `google_finance_list_page_rpcs`: return the current mapping for any Google
+  Finance page path or URL.
+- `google_finance_call_page_dataset`: call any advertised `ds:*` dataset from a
+  specific Google Finance page path or URL.
+- `google_finance_list_quote_rpcs`: return the quote-page mapping for a ticker
+  and exchange. `/finance/quote/...` is also accepted and currently redirects to
+  `/finance/beta/quote/...`.
+- `google_finance_call_quote_dataset`: call any advertised quote-page `ds:*`
+  dataset for a ticker and exchange.
 - `google_finance_call_rpc`: call a single RPC ID with an explicit request.
+  Explicit RPC calls default to the classic `GoogleFinanceUi` endpoint and can
+  opt into `endpoint_family: "finhub"`.
 - `google_finance_batch_call`: call multiple RPC IDs in one batchexecute POST.
+  Explicit batch calls use the same `endpoint_family` option.
 - `google_finance_ds_N_<purpose>`: dynamic tools generated from the current
   mapping, one for each advertised dataset key. The `ds:N` key is the exported
   interface identity; the current live `id`/hash is read from
@@ -64,15 +79,27 @@ them from `AF_dataServiceRequests`.
 
 ## Response handling
 
-All calls go through:
+Classic explicit RPC calls use:
 
 ```text
 https://www.google.com/finance/_/GoogleFinanceUi/data/batchexecute
 ```
 
+Current beta pages advertise the FinHubUi endpoint, and dataset calls use the
+endpoint associated with the page mapping:
+
+```text
+https://www.google.com/finance/beta/_/FinHubUi/data/batchexecute
+```
+
 The request body is a URL-encoded `f.req` value containing batched RPC calls.
 Responses are Google batchexecute frames; the server strips the anti-JSON prefix,
 decodes `wrb.fr` frames, and returns structured JSON.
+
+Generic `google_finance_call_rpc` and `google_finance_batch_call` accept an
+explicit `source_path` plus `endpoint_family: "classic" | "finhub"`. Dataset
+calls use the fetched page path and endpoint by default, so the home page and
+quote pages can both define `ds:0`, `ds:1`, and so on without sharing meaning.
 
 ## Run
 

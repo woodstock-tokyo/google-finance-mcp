@@ -9,7 +9,7 @@ from mcp.server import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool
 
-from .client import GoogleFinanceClient
+from .client import CLASSIC_BATCHEXECUTE_URL, DEFAULT_SOURCE_PATH, FINHUB_BATCHEXECUTE_URL, GoogleFinanceClient
 from .rpc_metadata import ARTICLE_REFERENCE_RPC_PURPOSES, EndpointMetadata
 
 JSONValue = Any
@@ -42,11 +42,52 @@ ANY_JSON_SCHEMA: dict[str, JSONValue] = {
 SOURCE_FIELDS: dict[str, JSONValue] = {
     "source_path": {
         "type": "string",
-        "default": "/finance/beta",
+        "default": DEFAULT_SOURCE_PATH,
         "description": "Google Finance page path used in the batchexecute source-path query parameter.",
     },
     "hl": {"type": "string", "default": "en"},
     "gl": {"type": "string", "default": "us"},
+}
+
+ENDPOINT_FAMILY_FIELD: dict[str, JSONValue] = {
+    "endpoint_family": {
+        "type": "string",
+        "enum": ["classic", "finhub"],
+        "default": "classic",
+        "description": "batchexecute endpoint family for explicit RPC calls: classic uses GoogleFinanceUi; finhub uses FinHubUi.",
+    }
+}
+
+GENERIC_RPC_FIELDS: dict[str, JSONValue] = {
+    **SOURCE_FIELDS,
+    **ENDPOINT_FAMILY_FIELD,
+}
+
+OPTIONAL_SOURCE_FIELDS: dict[str, JSONValue] = {
+    "source_path": {
+        "type": "string",
+        "description": "Override the batchexecute source-path query parameter; defaults to the fetched page path.",
+    },
+    "hl": {"type": "string", "default": "en"},
+    "gl": {"type": "string", "default": "us"},
+}
+
+PAGE_FIELD: dict[str, JSONValue] = {
+    "page_path": {
+        "type": "string",
+        "default": DEFAULT_SOURCE_PATH,
+        "description": "Google Finance page path or URL to fetch AF_dataServiceRequests from.",
+    }
+}
+
+QUOTE_FIELDS: dict[str, JSONValue] = {
+    "symbol": {"type": "string", "description": "Ticker symbol, such as NVDA."},
+    "exchange": {"type": "string", "description": "Exchange code, such as NASDAQ."},
+    "beta": {
+        "type": "boolean",
+        "default": True,
+        "description": "Use /finance/beta/quote when true; use /finance/quote when false.",
+    },
 }
 
 
@@ -59,8 +100,9 @@ GENERIC_TOOLS = [
                 "force": {
                     "type": "boolean",
                     "default": False,
-                    "description": "Fetch the beta page even if the current cache entry is still fresh.",
-                }
+                    "description": "Fetch the page even if the current cache entry is still fresh.",
+                },
+                **PAGE_FIELD,
             }
         ),
     ),
@@ -82,7 +124,7 @@ GENERIC_TOOLS = [
     ),
     Tool(
         name="google_finance_call_dataset",
-        description="Call any Google Finance dataset key advertised by AF_dataServiceRequests.",
+        description="Call any Google Finance home-page dataset key advertised by AF_dataServiceRequests.",
         inputSchema=_schema(
             {
                 "dataset_key": {
@@ -96,13 +138,55 @@ GENERIC_TOOLS = [
         ),
     ),
     Tool(
+        name="google_finance_list_page_rpcs",
+        description="List AF_initDataKeys and AF_dataServiceRequests for a Google Finance page path or URL.",
+        inputSchema=_schema(PAGE_FIELD),
+    ),
+    Tool(
+        name="google_finance_call_page_dataset",
+        description="Call any dataset key advertised by a specific Google Finance page path or URL.",
+        inputSchema=_schema(
+            {
+                **PAGE_FIELD,
+                "dataset_key": {
+                    "type": "string",
+                    "description": "Dataset key such as ds:0.",
+                },
+                "request_override": ANY_JSON_SCHEMA,
+                **OPTIONAL_SOURCE_FIELDS,
+            },
+            required=["dataset_key"],
+        ),
+    ),
+    Tool(
+        name="google_finance_list_quote_rpcs",
+        description="List quote-page AF_initDataKeys and AF_dataServiceRequests for a ticker and exchange.",
+        inputSchema=_schema(QUOTE_FIELDS, required=["symbol", "exchange"]),
+    ),
+    Tool(
+        name="google_finance_call_quote_dataset",
+        description="Call a quote-page dataset key for a ticker and exchange.",
+        inputSchema=_schema(
+            {
+                **QUOTE_FIELDS,
+                "dataset_key": {
+                    "type": "string",
+                    "description": "Quote-page dataset key such as ds:12.",
+                },
+                "request_override": ANY_JSON_SCHEMA,
+                **OPTIONAL_SOURCE_FIELDS,
+            },
+            required=["symbol", "exchange", "dataset_key"],
+        ),
+    ),
+    Tool(
         name="google_finance_call_rpc",
         description="Call a Google Finance RPC ID with an explicit JSON request payload.",
         inputSchema=_schema(
             {
                 "rpc_id": {"type": "string", "description": "RPC ID such as YtbmEe."},
                 "request": ANY_JSON_SCHEMA,
-                **SOURCE_FIELDS,
+                **GENERIC_RPC_FIELDS,
             },
             required=["rpc_id", "request"],
         ),
@@ -124,12 +208,30 @@ GENERIC_TOOLS = [
                         "additionalProperties": False,
                     },
                 },
-                **SOURCE_FIELDS,
+                **GENERIC_RPC_FIELDS,
             },
             required=["requests"],
         ),
     ),
 ]
+
+
+def quote_page_path(symbol: str, exchange: str, *, beta: bool = True) -> str:
+    prefix = "/finance/beta/quote" if beta else "/finance/quote"
+    return f"{prefix}/{symbol.upper()}:{exchange.upper()}"
+
+
+def _optional_str(value: JSONValue) -> str | None:
+    return None if value is None else str(value)
+
+
+def _batchexecute_url_from_endpoint_family(value: JSONValue) -> str:
+    endpoint_family = str(value or "classic")
+    if endpoint_family == "finhub":
+        return FINHUB_BATCHEXECUTE_URL
+    if endpoint_family == "classic":
+        return CLASSIC_BATCHEXECUTE_URL
+    raise ValueError(f"Unknown endpoint_family: {endpoint_family}")
 
 
 def dataset_tool_name(dataset_key: str, metadata: EndpointMetadata | None = None) -> str:
@@ -174,11 +276,14 @@ async def list_tools() -> list[Tool]:
 @server.call_tool(validate_input=True)
 async def call_tool(name: str, arguments: dict[str, JSONValue]) -> dict[str, JSONValue]:
     if name == "google_finance_refresh_mapping":
-        mapping = await client.get_mapping(force_refresh=bool(arguments.get("force", False)))
+        mapping = await client.get_mapping(
+            page_path=str(arguments.get("page_path", DEFAULT_SOURCE_PATH)),
+            force_refresh=bool(arguments.get("force", False)),
+        )
         return mapping.as_dict()
 
     if name == "google_finance_list_rpcs":
-        mapping = await client.get_mapping()
+        mapping = await client.get_mapping(page_path=DEFAULT_SOURCE_PATH)
         return mapping.as_dict()
 
     if name == "google_finance_list_known_rpc_purposes":
@@ -188,7 +293,46 @@ async def call_tool(name: str, arguments: dict[str, JSONValue]) -> dict[str, JSO
         return await client.call_dataset(
             str(arguments["dataset_key"]),
             arguments.get("request_override"),
-            source_path=str(arguments.get("source_path", "/finance/beta")),
+            page_path=DEFAULT_SOURCE_PATH,
+            source_path=str(arguments.get("source_path", DEFAULT_SOURCE_PATH)),
+            hl=str(arguments.get("hl", "en")),
+            gl=str(arguments.get("gl", "us")),
+        )
+
+    if name == "google_finance_list_page_rpcs":
+        mapping = await client.get_mapping(page_path=str(arguments.get("page_path", DEFAULT_SOURCE_PATH)))
+        return mapping.as_dict()
+
+    if name == "google_finance_call_page_dataset":
+        return await client.call_dataset(
+            str(arguments["dataset_key"]),
+            arguments.get("request_override"),
+            page_path=str(arguments.get("page_path", DEFAULT_SOURCE_PATH)),
+            source_path=_optional_str(arguments.get("source_path")),
+            hl=str(arguments.get("hl", "en")),
+            gl=str(arguments.get("gl", "us")),
+        )
+
+    if name == "google_finance_list_quote_rpcs":
+        mapping = await client.get_mapping(
+            page_path=quote_page_path(
+                str(arguments["symbol"]),
+                str(arguments["exchange"]),
+                beta=bool(arguments.get("beta", True)),
+            )
+        )
+        return mapping.as_dict()
+
+    if name == "google_finance_call_quote_dataset":
+        return await client.call_dataset(
+            str(arguments["dataset_key"]),
+            arguments.get("request_override"),
+            page_path=quote_page_path(
+                str(arguments["symbol"]),
+                str(arguments["exchange"]),
+                beta=bool(arguments.get("beta", True)),
+            ),
+            source_path=_optional_str(arguments.get("source_path")),
             hl=str(arguments.get("hl", "en")),
             gl=str(arguments.get("gl", "us")),
         )
@@ -197,7 +341,8 @@ async def call_tool(name: str, arguments: dict[str, JSONValue]) -> dict[str, JSO
         return await client.call_rpc(
             str(arguments["rpc_id"]),
             arguments["request"],
-            source_path=str(arguments.get("source_path", "/finance/beta")),
+            source_path=str(arguments.get("source_path", DEFAULT_SOURCE_PATH)),
+            batchexecute_url=_batchexecute_url_from_endpoint_family(arguments.get("endpoint_family")),
             hl=str(arguments.get("hl", "en")),
             gl=str(arguments.get("gl", "us")),
         )
@@ -206,7 +351,8 @@ async def call_tool(name: str, arguments: dict[str, JSONValue]) -> dict[str, JSO
         return {
             "results": await client.batch_call(
                 list(arguments["requests"]),
-                source_path=str(arguments.get("source_path", "/finance/beta")),
+                source_path=str(arguments.get("source_path", DEFAULT_SOURCE_PATH)),
+                batchexecute_url=_batchexecute_url_from_endpoint_family(arguments.get("endpoint_family")),
                 hl=str(arguments.get("hl", "en")),
                 gl=str(arguments.get("gl", "us")),
             )
@@ -217,7 +363,8 @@ async def call_tool(name: str, arguments: dict[str, JSONValue]) -> dict[str, JSO
         return await client.call_dataset(
             dataset_key,
             arguments.get("request_override"),
-            source_path=str(arguments.get("source_path", "/finance/beta")),
+            page_path=DEFAULT_SOURCE_PATH,
+            source_path=str(arguments.get("source_path", DEFAULT_SOURCE_PATH)),
             hl=str(arguments.get("hl", "en")),
             gl=str(arguments.get("gl", "us")),
         )

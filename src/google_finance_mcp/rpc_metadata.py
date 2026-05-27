@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -77,7 +78,58 @@ BETA_DATASET_PURPOSES: dict[str, tuple[str, str]] = {
 }
 
 
-def metadata_for_dataset(dataset_key: str, current_rpc_id: str, request: JSONValue) -> EndpointMetadata:
+def metadata_for_dataset(
+    dataset_key: str,
+    current_rpc_id: str,
+    request: JSONValue,
+    *,
+    source_path: str = "/finance/beta",
+) -> EndpointMetadata:
+    if "/quote/" in source_path:
+        if current_rpc_id == "gCvqoe" and _is_quote_request(request):
+            return EndpointMetadata(
+                dataset_key=dataset_key,
+                current_rpc_id=current_rpc_id,
+                purpose="Quote",
+                request_shape="[[tuple], 1] or [[tuple]]",
+                slug="quote",
+                source="google-finance-quote-request-shape",
+                reference_rpc_ids=("xh8wxf",),
+            )
+
+        if _is_company_info_like_request(request):
+            return EndpointMetadata(
+                dataset_key=dataset_key,
+                current_rpc_id=current_rpc_id,
+                purpose="Security tuple endpoint",
+                request_shape="[[tuple]]",
+                slug="security_tuple_endpoint",
+                source="google-finance-quote-request-shape",
+                reference_rpc_ids=("HqGpWd", "uwlMvd", "o6pODe", "yYvDpf"),
+            )
+
+        inferred = _infer_from_request(request)
+        if inferred:
+            purpose, request_shape, reference_rpc_ids = inferred
+            return EndpointMetadata(
+                dataset_key=dataset_key,
+                current_rpc_id=current_rpc_id,
+                purpose=purpose,
+                request_shape=request_shape,
+                slug=_slug(purpose),
+                source="google-finance-quote-request-shape",
+                reference_rpc_ids=reference_rpc_ids,
+            )
+
+        return EndpointMetadata(
+            dataset_key=dataset_key,
+            current_rpc_id=current_rpc_id,
+            purpose=f"Quote page dataset {dataset_key}",
+            request_shape=_request_shape(request),
+            slug=f"quote_page_{dataset_key.replace(':', '_')}",
+            source="google-finance-quote-dataset-key",
+        )
+
     beta_purpose = BETA_DATASET_PURPOSES.get(dataset_key)
     if beta_purpose:
         purpose, request_shape = beta_purpose
@@ -116,6 +168,13 @@ def metadata_for_dataset(dataset_key: str, current_rpc_id: str, request: JSONVal
     )
 
 
+def _request_shape(request: JSONValue) -> str:
+    try:
+        return json.dumps(request, separators=(",", ":"))
+    except TypeError:
+        return "Discovered from AF_dataServiceRequests; request shape is not JSON serializable."
+
+
 def _infer_from_request(request: JSONValue) -> tuple[str, str, tuple[str, ...]] | None:
     if request == [1]:
         return "Top headline", "[1]", ("QKZUzd",)
@@ -135,10 +194,10 @@ def _infer_from_request(request: JSONValue) -> tuple[str, str, tuple[str, ...]] 
         return "Market summary", '["market_summary", mode]', ()
     if _is_ticker_context_request(request):
         return "Stock context", '["SYMBOL:EXCHANGE"]', ("mKsvE",)
-    if _is_chart_request(request):
-        return "Chart", "[[tuple], mode]", ("AiCwsd",)
     if _is_quote_request(request):
         return "Quote", "[[tuple], 1] or [[tuple]]", ("xh8wxf",)
+    if _is_chart_request(request):
+        return "Chart", "[[tuple], mode]", ("AiCwsd",)
     if _is_company_info_like_request(request):
         return "Security tuple endpoint", "[[tuple]]", ("HqGpWd", "uwlMvd", "o6pODe", "yYvDpf")
     if _is_related_stocks_request(request):

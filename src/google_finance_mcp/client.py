@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import anyio
 import httpx
@@ -17,7 +17,10 @@ from .rpc_metadata import EndpointMetadata, metadata_for_dataset
 JSONValue = Any
 
 BETA_URL = "https://www.google.com/finance/beta"
-BATCHEXECUTE_URL = "https://www.google.com/finance/_/GoogleFinanceUi/data/batchexecute"
+DEFAULT_SOURCE_PATH = "/finance/beta"
+CLASSIC_BATCHEXECUTE_URL = "https://www.google.com/finance/_/GoogleFinanceUi/data/batchexecute"
+FINHUB_BATCHEXECUTE_URL = "https://www.google.com/finance/beta/_/FinHubUi/data/batchexecute"
+BATCHEXECUTE_URL = CLASSIC_BATCHEXECUTE_URL
 
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -82,6 +85,8 @@ class CachePolicy:
 @dataclass(frozen=True)
 class ApiMapping:
     source_url: str
+    source_path: str
+    batchexecute_url: str
     init_data_keys: list[str]
     requests: dict[str, DataServiceRequest]
     cache_policy: CachePolicy
@@ -89,6 +94,8 @@ class ApiMapping:
     def as_dict(self) -> dict[str, JSONValue]:
         return {
             "source_url": self.source_url,
+            "source_path": self.source_path,
+            "batchexecute_url": self.batchexecute_url,
             "init_data_keys": self.init_data_keys,
             "requests": {key: value.as_dict() for key, value in self.requests.items()},
             "cache": self.cache_policy.as_dict(),
@@ -148,6 +155,7 @@ def _js_literal_to_json(value: str) -> JSONValue:
 def parse_mapping_from_html(html: str, source_url: str, headers: httpx.Headers | dict[str, str]) -> ApiMapping:
     init_data_keys = _js_literal_to_json(_read_js_assignment(html, "AF_initDataKeys"))
     raw_requests = _js_literal_to_json(_read_js_assignment(html, "AF_dataServiceRequests"))
+    source_path = _source_path_from_url(source_url)
 
     if not isinstance(init_data_keys, list) or not all(isinstance(key, str) for key in init_data_keys):
         raise MappingParseError("AF_initDataKeys was not a string array")
@@ -165,15 +173,40 @@ def parse_mapping_from_html(html: str, source_url: str, headers: httpx.Headers |
             key=key,
             rpc_id=rpc_id,
             request=value["request"],
-            metadata=metadata_for_dataset(key, rpc_id, value["request"]),
+            metadata=metadata_for_dataset(key, rpc_id, value["request"], source_path=source_path),
         )
 
     return ApiMapping(
         source_url=source_url,
+        source_path=source_path,
+        batchexecute_url=_batchexecute_url_for_page(html, source_url),
         init_data_keys=init_data_keys,
         requests=requests,
         cache_policy=cache_policy_from_headers(headers),
     )
+
+
+def _source_path_from_url(url: str) -> str:
+    path = urlsplit(url).path
+    return path or DEFAULT_SOURCE_PATH
+
+
+def _batchexecute_url_for_page(html: str, source_url: str) -> str:
+    parsed = urlsplit(source_url)
+    origin = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else "https://www.google.com"
+    if "FinHubUi" in html or parsed.path.startswith("/finance/beta"):
+        return FINHUB_BATCHEXECUTE_URL.replace("https://www.google.com", origin)
+    return CLASSIC_BATCHEXECUTE_URL.replace("https://www.google.com", origin)
+
+
+def _page_url(base_url: str, page_path: str) -> str:
+    parsed = urlsplit(page_path)
+    if parsed.scheme and parsed.netloc:
+        return page_path
+    if not page_path.startswith("/"):
+        raise ValueError("page_path must be an absolute path or URL")
+    base = urlsplit(base_url)
+    return f"{base.scheme}://{base.netloc}{page_path}"
 
 
 def cache_policy_from_headers(headers: httpx.Headers | dict[str, str]) -> CachePolicy:
@@ -278,18 +311,22 @@ class GoogleFinanceClient:
         self.beta_url = beta_url
         self.batchexecute_url = batchexecute_url
         self.timeout = timeout
-        self._mapping: ApiMapping | None = None
+        self._mappings: dict[str, ApiMapping] = {}
         self._lock = anyio.Lock()
 
-    async def get_mapping(self, *, force_refresh: bool = False) -> ApiMapping:
+    async def get_mapping(self, *, page_path: str = DEFAULT_SOURCE_PATH, force_refresh: bool = False) -> ApiMapping:
         async with self._lock:
-            if force_refresh or self._mapping is None or self._mapping.cache_policy.is_stale:
-                self._mapping = await self.fetch_mapping()
-            return self._mapping
+            cache_key = _source_path_from_url(page_path) if urlsplit(page_path).scheme else page_path
+            mapping = self._mappings.get(cache_key)
+            if force_refresh or mapping is None or mapping.cache_policy.is_stale:
+                mapping = await self.fetch_mapping(page_path=page_path)
+                self._mappings[cache_key] = mapping
+                self._mappings[mapping.source_path] = mapping
+            return mapping
 
-    async def fetch_mapping(self) -> ApiMapping:
+    async def fetch_mapping(self, *, page_path: str = DEFAULT_SOURCE_PATH) -> ApiMapping:
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=DEFAULT_HEADERS) as client:
-            response = await client.get(self.beta_url)
+            response = await client.get(_page_url(self.beta_url, page_path))
             response.raise_for_status()
             return parse_mapping_from_html(str(response.text), str(response.url), response.headers)
 
@@ -298,18 +335,20 @@ class GoogleFinanceClient:
         dataset_key: str,
         request_override: JSONValue | None = None,
         *,
-        source_path: str = "/finance/beta",
+        page_path: str = DEFAULT_SOURCE_PATH,
+        source_path: str | None = None,
         hl: str = "en",
         gl: str = "us",
     ) -> dict[str, JSONValue]:
-        mapping = await self.get_mapping()
+        mapping = await self.get_mapping(page_path=page_path)
         request = mapping.requests.get(dataset_key)
         if request is None:
-            raise KeyError(f"Unknown Google Finance dataset key: {dataset_key}")
+            raise KeyError(f"Unknown Google Finance dataset key for {mapping.source_path}: {dataset_key}")
         return (
             await self.batch_call(
                 [{"id": request.rpc_id, "request": request.request if request_override is None else request_override}],
-                source_path=source_path,
+                source_path=source_path or mapping.source_path,
+                batchexecute_url=mapping.batchexecute_url,
                 hl=hl,
                 gl=gl,
             )
@@ -320,17 +359,27 @@ class GoogleFinanceClient:
         rpc_id: str,
         request: JSONValue,
         *,
-        source_path: str = "/finance/beta",
+        source_path: str = DEFAULT_SOURCE_PATH,
+        batchexecute_url: str | None = None,
         hl: str = "en",
         gl: str = "us",
     ) -> dict[str, JSONValue]:
-        return (await self.batch_call([{"id": rpc_id, "request": request}], source_path=source_path, hl=hl, gl=gl))[0]
+        return (
+            await self.batch_call(
+                [{"id": rpc_id, "request": request}],
+                source_path=source_path,
+                batchexecute_url=batchexecute_url,
+                hl=hl,
+                gl=gl,
+            )
+        )[0]
 
     async def batch_call(
         self,
         requests: list[dict[str, JSONValue]],
         *,
-        source_path: str = "/finance/beta",
+        source_path: str = DEFAULT_SOURCE_PATH,
+        batchexecute_url: str | None = None,
         hl: str = "en",
         gl: str = "us",
     ) -> list[dict[str, JSONValue]]:
@@ -339,7 +388,7 @@ class GoogleFinanceClient:
 
         rpcids = ",".join(dict.fromkeys(str(item["id"]) for item in requests))
         query = urlencode({"rpcids": rpcids, "source-path": source_path, "hl": hl, "gl": gl, "rt": "c"})
-        url = f"{self.batchexecute_url}?{query}"
+        url = f"{batchexecute_url or self.batchexecute_url}?{query}"
         headers = {**DEFAULT_HEADERS, "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"}
 
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
