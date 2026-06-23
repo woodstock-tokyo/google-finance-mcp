@@ -1,6 +1,16 @@
 # google-finance-mcp
 
-MCP server for Google Finance's internal `batchexecute` RPC endpoint.
+Unofficial MCP server for Google Finance's internal `batchexecute` RPC endpoint.
+
+This project is not affiliated with, endorsed by, or sponsored by Google. It
+does not grant rights to Google Finance data or any third-party market data.
+Review the [legal, usage, and contribution policy](LEGAL.md) before using,
+contributing to, packaging, publishing, or deploying this project.
+
+Intended use is local, personal, manually configured, and user-initiated. This
+wrapper behaves as an execution layer for endpoints advertised in the Google
+Finance web page; it is not intended to run as a hosted API, shared proxy,
+crawler, scheduled data puller, data store, or redistribution service.
 
 The server fetches Google Finance pages such as
 `https://www.google.com/finance/beta` or
