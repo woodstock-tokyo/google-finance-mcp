@@ -341,18 +341,68 @@ class GoogleFinanceClient:
         gl: str = "us",
     ) -> dict[str, JSONValue]:
         mapping = await self.get_mapping(page_path=page_path)
-        request = mapping.requests.get(dataset_key)
-        if request is None:
-            raise KeyError(f"Unknown Google Finance dataset key for {mapping.source_path}: {dataset_key}")
-        return (
-            await self.batch_call(
-                [{"id": request.rpc_id, "request": request.request if request_override is None else request_override}],
-                source_path=source_path or mapping.source_path,
-                batchexecute_url=mapping.batchexecute_url,
+        try:
+            return await self._call_dataset_from_mapping(
+                mapping,
+                dataset_key,
+                request_override,
+                source_path=source_path,
                 hl=hl,
                 gl=gl,
             )
-        )[0]
+        except KeyError:
+            mapping = await self.get_mapping(page_path=page_path, force_refresh=True)
+            return await self._call_dataset_from_mapping(
+                mapping,
+                dataset_key,
+                request_override,
+                source_path=source_path,
+                hl=hl,
+                gl=gl,
+            )
+
+    async def _call_dataset_from_mapping(
+        self,
+        mapping: ApiMapping,
+        dataset_key: str,
+        request_override: JSONValue | None,
+        *,
+        source_path: str | None,
+        hl: str,
+        gl: str,
+    ) -> dict[str, JSONValue]:
+        request = mapping.requests.get(dataset_key)
+        if request is None:
+            raise KeyError(f"Unknown Google Finance dataset key for {mapping.source_path}: {dataset_key}")
+        results = await self.batch_call(
+            [{"id": request.rpc_id, "request": request.request if request_override is None else request_override}],
+            source_path=source_path or mapping.source_path,
+            batchexecute_url=mapping.batchexecute_url,
+            hl=hl,
+            gl=gl,
+        )
+        if not results:
+            refreshed = await self.get_mapping(page_path=mapping.source_path, force_refresh=True)
+            refreshed_request = refreshed.requests.get(dataset_key)
+            if refreshed_request is None:
+                raise KeyError(f"Unknown Google Finance dataset key for {refreshed.source_path}: {dataset_key}")
+            results = await self.batch_call(
+                [
+                    {
+                        "id": refreshed_request.rpc_id,
+                        "request": refreshed_request.request if request_override is None else request_override,
+                    }
+                ],
+                source_path=source_path or refreshed.source_path,
+                batchexecute_url=refreshed.batchexecute_url,
+                hl=hl,
+                gl=gl,
+            )
+        if not results:
+            raise MappingParseError(
+                f"Google Finance returned no batchexecute frame for {dataset_key} on {mapping.source_path}"
+            )
+        return results[0]
 
     async def call_rpc(
         self,

@@ -24,6 +24,16 @@ This server treats the `ds:N` key as the exported interface identity. The
 POST body, and it may change over time. Do not build clients against a hardcoded
 `id`; call by `ds:N` or by the generated `google_finance_ds_N_<purpose>` tool.
 
+Metadata is compiled at runtime from the live `AF_dataServiceRequests` entry.
+The compiler scores evidence from the current RPC id, the live request shape,
+and the `ds:N` page hint, then records a `justification` array in each metadata
+object. If Google shifts quote-page dataset numbers, RPC-id and request-shape
+evidence can override stale `ds:N` assumptions without a code change.
+
+Dataset calls also self-repair stale cached method tokens. If a cached dataset
+call returns no `wrb.fr` batchexecute frame, the client force-refreshes the page
+HTML, re-parses the current RPC id and endpoint, and retries the dataset once.
+
 ## Tools
 
 - `google_finance_list_rpcs`: return the current `AF_initDataKeys` and
@@ -62,34 +72,33 @@ reference examples. Calls use the live `id` currently associated with each
 
 These generated tools are for the Google Finance beta home page only
 (`/finance/beta`). The meanings were verified against the live beta page on
-2026-05-26. The `id` values below are examples from that run and can change; the
+2026-06-23. The `id` values below are examples from that run and can change; the
 server refreshes them from `AF_dataServiceRequests`.
 
 | Dataset | Example live id | Generated tool | Meaning | Default request |
 | --- | --- | --- | --- | --- |
 | `ds:0` | `hgueg` | `google_finance_ds_0_market_overview_quotes` | Market overview quotes | `[1]` |
 | `ds:1` | `vNewwe` | `google_finance_ds_1_equity_sectors` | Equity sectors | `[null,[null,1]]` |
-| `ds:2` | `RmdyKd` | `google_finance_ds_2_earnings_calendar` | Earnings calendar | `[1,0,2]` |
-| `ds:3` | `RmdyKd` | `google_finance_ds_3_earnings_calendar_secondary` | Earnings calendar secondary, currently empty | `[3,1]` |
+| `ds:2` | `HGhSgc` | `google_finance_ds_2_earnings_calendar` | Earnings calendar | `[1,0,2]` |
+| `ds:3` | `HGhSgc` | `google_finance_ds_3_earnings_calendar_secondary` | Earnings calendar secondary, currently empty | `[3,1]` |
 | `ds:4` | `hgueg` | `google_finance_ds_4_market_overview_charts` | Market overview charts with SVG sparklines | `[0]` |
 | `ds:5` | `HacE5d` | `google_finance_ds_5_market_summary_news_clusters` | Market summary news clusters | `["market_summary",1]` |
 | `ds:6` | `MlXU3e` | `google_finance_ds_6_top_finance_articles` | Top finance articles | `[8]` |
 | `ds:7` | `kA4MVd` | `google_finance_ds_7_market_news` | Market news | `[2,20]` |
 | `ds:8` | `YtbmEe` | `google_finance_ds_8_market_movers` | Market movers | `[[2,3,1],4,0]` |
-| `ds:9` | `RiQiSd` | `google_finance_ds_9_empty_initialization_endpoint` | Empty initialization endpoint | `[]` |
+| `ds:9` | `RiQiSd` | `google_finance_ds_9_empty_initialization_endpoint` | Empty initialization endpoint | `[null,null,25]` |
 | `ds:10` | `X12h2b` | `google_finance_ds_10_empty_initialization_endpoint` | Empty initialization endpoint | `[]` |
-| `ds:11` | `vNewwe` | `google_finance_ds_11_equity_sectors_metadata` | Equity sectors metadata | `[]` |
 
 ## Quote-page dataset discovery
 
 Classic quote URLs such as `/finance/quote/GOOGL:NASDAQ` are accepted by the
 server and currently redirect to `/finance/beta/quote/GOOGL:NASDAQ`. That
-redirected quote page advertises `ds:0` through `ds:18`. These are not generated
+redirected quote page advertises `ds:0` through `ds:20`. These are not generated
 `google_finance_ds_N_<purpose>` tools; call them with
 `google_finance_call_quote_dataset` or `google_finance_call_page_dataset`.
 
 These meanings were discovered from the live quote page and response payloads on
-2026-05-27 using `GOOGL:NASDAQ`. The `id` values are examples from that run and
+2026-06-23 using `NVDA:NASDAQ`. The `id` values are examples from that run and
 can change.
 
 | Dataset | Example live id | Meaning | Default request shape | Notes |
@@ -99,27 +108,22 @@ can change.
 | `ds:2` | `gCvqoe` | Quote summary | `[[tuple],1]` | Main quote payload for the requested security. |
 | `ds:3` | `JL8oKc` | Company profile | `[[tuple]]` | Long company/security profile and descriptive fields. |
 | `ds:4` | `SICF5d` | Related securities | `[tuple,4]` | Peer/related quote cards for comparison. |
-| `ds:5` | `XxQsbd` | Earnings history and estimates | `[[tuple],1]` | Quarterly rows with actual and estimated revenue/EPS fields. |
-| `ds:6` | `dlNq8b` | Security overview card | `[[tuple],1,1,1]` | Price, market cap, industry, logo, and summary quote fields. |
-| `ds:7` | `c2u4wc` | Intraday chart points | `[[tuple],1]` | Minute-level price points. |
-| `ds:8` | `c2u4wc` | Intraday OHLCV chart | `[[tuple],1,null,null,null,null,null,1]` | Intraday candle rows with open, close, high, low, timestamp, and volume. |
-| `ds:9` | `c2u4wc` | One-month chart points | `[[tuple],3]` | Daily price points. |
-| `ds:10` | `c2u4wc` | One-month OHLCV chart | `[[tuple],3,null,null,null,null,null,1]` | Daily candle rows with open, close, high, low, timestamp, and volume. |
-| `ds:11` | `gXxkFd` | Key statistics / ratios | `[["SYMBOL","EXCHANGE"]]` | Compact numeric ratio vector; individual field labels still need mapping. |
-| `ds:12` | `gCvqoe` | Quote summary alternate | `[[tuple]]` | Quote payload without the trailing mode flag. |
-| `ds:13` | `Pr8h2e` | Financials / estimates | `[[tuple],null,1]` | Financial statement and estimate arrays. |
-| `ds:14` | `kA4MVd` | Market news feed | `[2,12,[tuple]]` | General market or related news list. |
-| `ds:15` | `kA4MVd` | Security news feed | `[5,12,[tuple]]` | Company/security-specific article list. |
-| `ds:16` | `RiQiSd` | Empty initialization endpoint | `[]` | Observed across equity, ETF, index, crypto, and FX quote pages; returns `[]`. |
-| `ds:17` | `X12h2b` | Empty initialization endpoint | `[]` | Observed across equity, ETF, index, crypto, and FX quote pages; returns `[]`. |
-| `ds:18` | `vNewwe` | Equity sectors metadata | `[]` | Empty request that returns sector metadata. |
-
-`ds:16` and `ds:17` were specifically crawled across quote pages including
-`GOOGL:NASDAQ`, `NVDA:NASDAQ`, `SPY:NYSEARCA`, `.INX:INDEXSP`,
-`BTC-USD:CCY`, and `EUR-USD:CCY`. In each case the page advertised the same
-request shape, `[]`, and batchexecute returned an empty data array. Market,
-search, portfolio, and watchlist routes redirected to the beta home page and did
-not expose `ds:16` or `ds:17`.
+| `ds:5` | `YTM9q` | Analyst ratings and price targets | `[tuple]` | Analyst consensus, price target range, and recent analyst actions. |
+| `ds:6` | `Kcy68c` | Earnings history and estimates | `[[tuple],1]` | Quarterly rows with actual and estimated revenue/EPS fields. |
+| `ds:7` | `XxQsbd` | Earnings history and estimates alternate | `[[tuple],1]` | Alternate quarterly rows with actual and estimated revenue/EPS fields. |
+| `ds:8` | `ADgT7b` | Security overview card | `[[tuple],1,1,1]` | Price, market cap, industry, logo, and summary quote fields. |
+| `ds:9` | `c2u4wc` | Intraday chart points | `[[tuple],1]` | Minute-level price points. |
+| `ds:10` | `c2u4wc` | Intraday OHLCV chart | `[[tuple],1,null,null,null,null,null,1]` | Intraday candle rows with open, close, high, low, timestamp, and volume. |
+| `ds:11` | `c2u4wc` | One-month chart points | `[[tuple],3]` | Daily price points. |
+| `ds:12` | `c2u4wc` | One-month OHLCV chart | `[[tuple],3,null,null,null,null,null,1]` | Daily candle rows with open, close, high, low, timestamp, and volume. |
+| `ds:13` | `gXxkFd` | Key statistics / ratios | `[["SYMBOL","EXCHANGE"]]` | Compact numeric ratio vector; individual field labels still need mapping. |
+| `ds:14` | `gCvqoe` | Quote summary alternate | `[[tuple]]` | Quote payload without the trailing mode flag. |
+| `ds:15` | `dlNq8b` | Security overview card alternate | `[[tuple],1,1,1]` | Alternate price, market cap, industry, logo, and summary quote fields. |
+| `ds:16` | `Pr8h2e` | Financials / estimates | `[[tuple],null,1]` | Financial statement and estimate arrays. |
+| `ds:17` | `kA4MVd` | Market news feed | `[2,12,[tuple]]` | General market or related news list. |
+| `ds:18` | `kA4MVd` | Security news feed | `[5,12,[tuple]]` | Company/security-specific article list. |
+| `ds:19` | `RiQiSd` | Empty initialization endpoint | `[null,null,25]` | Initialization request that returns an empty data array. |
+| `ds:20` | `X12h2b` | Empty initialization endpoint | `[]` | Initialization request that returns an empty data array. |
 
 ## Endpoint handling
 
@@ -152,11 +156,107 @@ explicit `source_path` plus `endpoint_family: "classic" | "finhub"`. Dataset
 calls use the fetched page path and endpoint by default, so the home page and
 quote pages can both define `ds:0`, `ds:1`, and so on without sharing meaning.
 
-## Run
+## Install and setup
+
+Requirements:
+
+- Python 3.11 or newer.
+- Network access to `www.google.com` at runtime.
+- An MCP client that can launch stdio servers.
+
+Install from a source checkout for local development:
 
 ```bash
+cd google-finance-mcp
+uv venv
 uv pip install -e ".[dev]"
+pytest -q
+```
+
+Run the MCP server directly:
+
+```bash
 google-finance-mcp
 ```
 
-By default the server uses MCP stdio transport.
+The server uses MCP stdio transport. It does not print an HTTP URL or listen on
+a port; the MCP client starts the command and communicates over stdin/stdout.
+
+## Build package
+
+This is a pure Python package, so there is no native compile step. To build a
+wheel and source distribution:
+
+```bash
+python -m pip install build
+python -m build
+```
+
+Install the built wheel:
+
+```bash
+python -m pip install dist/google_finance_mcp-0.1.0-py3-none-any.whl
+```
+
+You can also run the module entry point without relying on the console script:
+
+```bash
+python -m google_finance_mcp
+```
+
+## MCP client configuration
+
+For a local editable install, point your MCP client at the virtualenv console
+script so it always uses this checkout:
+
+```json
+{
+  "mcpServers": {
+    "google-finance": {
+      "command": "/absolute/path/to/google-finance-mcp/.venv/bin/google-finance-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+For a globally installed wheel or package, the shorter command is enough:
+
+```json
+{
+  "mcpServers": {
+    "google-finance": {
+      "command": "google-finance-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+After connecting the client, start with these tools:
+
+- `google_finance_list_rpcs`: fetch and display the current home-page mapping.
+- `google_finance_list_quote_rpcs`: fetch the current mapping for a ticker and
+  exchange, for example `NVDA` and `NASDAQ`.
+- `google_finance_call_dataset`: call a home-page `ds:*` dataset by key.
+- `google_finance_call_quote_dataset`: call a quote-page `ds:*` dataset by
+  symbol, exchange, and dataset key.
+
+## Smoke test
+
+A quick local import and live mapping check:
+
+```bash
+python - <<'PY'
+import anyio
+from google_finance_mcp.client import GoogleFinanceClient
+
+async def main():
+    client = GoogleFinanceClient()
+    mapping = await client.get_mapping(force_refresh=True)
+    print(mapping.source_path)
+    print(sorted(mapping.requests))
+
+anyio.run(main)
+PY
+```

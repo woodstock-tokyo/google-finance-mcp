@@ -18,6 +18,7 @@ class EndpointMetadata:
     source: str
     description: str = ""
     reference_rpc_ids: tuple[str, ...] = ()
+    justification: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, JSONValue]:
         return {
@@ -29,6 +30,7 @@ class EndpointMetadata:
             "source": self.source,
             "description": self.description,
             "reference_rpc_ids": list(self.reference_rpc_ids),
+            "justification": list(self.justification),
         }
 
 
@@ -74,7 +76,7 @@ BETA_DATASET_PURPOSES: dict[str, tuple[str, str, str]] = {
     "ds:6": ("Top finance articles", "[8]", "Top finance article list."),
     "ds:7": ("Market news", "[2, 20]", "Market news feed."),
     "ds:8": ("Market movers", "[[categories], count, offset]", "Market mover lists by category, count, and offset."),
-    "ds:9": ("Empty initialization endpoint", "[]", "Initialization request that returns an empty payload."),
+    "ds:9": ("Empty initialization endpoint", "[null, null, 25]", "Initialization request that returns an empty payload."),
     "ds:10": ("Empty initialization endpoint", "[]", "Initialization request that returns an empty payload."),
     "ds:11": ("Equity sectors metadata", "[]", "Empty request that returns sector metadata."),
 }
@@ -87,48 +89,127 @@ QUOTE_PAGE_DATASET_PURPOSES: dict[str, tuple[str, str, str]] = {
     "ds:3": ("Company profile", "[[tuple]]", "Long company/security profile and descriptive fields."),
     "ds:4": ("Related securities", "[tuple, 4]", "Peer and related quote cards for comparison."),
     "ds:5": (
+        "Analyst ratings and price targets",
+        "[tuple]",
+        "Analyst consensus, price target range, and recent analyst actions.",
+    ),
+    "ds:6": (
         "Earnings history and estimates",
         "[[tuple], 1]",
         "Quarterly rows with actual and estimated revenue/EPS fields.",
     ),
-    "ds:6": (
+    "ds:7": (
+        "Earnings history and estimates alternate",
+        "[[tuple], 1]",
+        "Alternate quarterly rows with actual and estimated revenue/EPS fields.",
+    ),
+    "ds:8": (
         "Security overview card",
         "[[tuple], 1, 1, 1]",
         "Price, market cap, industry, logo, and summary quote fields.",
     ),
-    "ds:7": ("Intraday chart points", "[[tuple], 1]", "Minute-level price points."),
-    "ds:8": (
+    "ds:9": ("Intraday chart points", "[[tuple], 1]", "Minute-level price points."),
+    "ds:10": (
         "Intraday OHLCV chart",
         "[[tuple], 1, null, null, null, null, null, 1]",
         "Intraday candle rows with open, close, high, low, timestamp, and volume.",
     ),
-    "ds:9": ("One-month chart points", "[[tuple], 3]", "Daily price points."),
-    "ds:10": (
+    "ds:11": ("One-month chart points", "[[tuple], 3]", "Daily price points."),
+    "ds:12": (
         "One-month OHLCV chart",
         "[[tuple], 3, null, null, null, null, null, 1]",
         "Daily candle rows with open, close, high, low, timestamp, and volume.",
     ),
-    "ds:11": (
+    "ds:13": (
         "Key statistics / ratios",
         '[["SYMBOL", "EXCHANGE"]]',
         "Compact numeric ratio vector; individual field labels still need mapping.",
     ),
-    "ds:12": ("Quote summary alternate", "[[tuple]]", "Quote payload without the trailing mode flag."),
-    "ds:13": ("Financials / estimates", "[[tuple], null, 1]", "Financial statement and estimate arrays."),
-    "ds:14": ("Market news feed", "[2, 12, [tuple]]", "General market or related news list."),
-    "ds:15": ("Security news feed", "[5, 12, [tuple]]", "Company/security-specific article list."),
+    "ds:14": ("Quote summary alternate", "[[tuple]]", "Quote payload without the trailing mode flag."),
+    "ds:15": (
+        "Security overview card alternate",
+        "[[tuple], 1, 1, 1]",
+        "Alternate price, market cap, industry, logo, and summary quote fields.",
+    ),
     "ds:16": (
-        "Empty initialization endpoint",
-        "[]",
-        "Quote-page initialization request observed across equity, ETF, index, crypto, and FX pages; returns an empty payload.",
+        "Financials / estimates",
+        "[[tuple], null, 1]",
+        "Financial statement and estimate arrays.",
     ),
-    "ds:17": (
-        "Empty initialization endpoint",
-        "[]",
-        "Quote-page initialization request observed across equity, ETF, index, crypto, and FX pages; returns an empty payload.",
-    ),
-    "ds:18": ("Equity sectors metadata", "[]", "Empty request that returns sector metadata."),
+    "ds:17": ("Market news feed", "[2, 12, [tuple]]", "General market or related news list."),
+    "ds:18": ("Security news feed", "[5, 12, [tuple]]", "Company/security-specific article list."),
+    "ds:19": ("Empty initialization endpoint", "[null, null, 25]", "Initialization request that returns an empty payload."),
+    "ds:20": ("Empty initialization endpoint", "[]", "Initialization request that returns an empty payload."),
 }
+
+
+QUOTE_RPC_PURPOSES: dict[str, list[tuple[str, str, str]]] = {
+    "gCvqoe": [
+        ("Quote summary", "[[tuple], 1]", "Main quote payload for the requested security."),
+        ("Quote summary alternate", "[[tuple]]", "Quote payload without the trailing mode flag."),
+    ],
+    "JL8oKc": [("Company profile", "[[tuple]]", "Long company/security profile and descriptive fields.")],
+    "SICF5d": [("Related securities", "[tuple, 4]", "Peer and related quote cards for comparison.")],
+    "YTM9q": [
+        ("Analyst ratings and price targets", "[tuple]", "Analyst consensus, price target range, and recent analyst actions.")
+    ],
+    "Kcy68c": [
+        ("Earnings history and estimates", "[[tuple], 1]", "Quarterly rows with actual and estimated revenue/EPS fields.")
+    ],
+    "XxQsbd": [
+        (
+            "Earnings history and estimates alternate",
+            "[[tuple], 1]",
+            "Alternate quarterly rows with actual and estimated revenue/EPS fields.",
+        )
+    ],
+    "ADgT7b": [
+        ("Security overview card", "[[tuple], 1, 1, 1]", "Price, market cap, industry, logo, and summary quote fields.")
+    ],
+    "dlNq8b": [
+        (
+            "Security overview card alternate",
+            "[[tuple], 1, 1, 1]",
+            "Alternate price, market cap, industry, logo, and summary quote fields.",
+        )
+    ],
+    "c2u4wc": [
+        ("Intraday chart points", "[[tuple], 1]", "Minute-level price points."),
+        (
+            "Intraday OHLCV chart",
+            "[[tuple], 1, null, null, null, null, null, 1]",
+            "Intraday candle rows with open, close, high, low, timestamp, and volume.",
+        ),
+        ("One-month chart points", "[[tuple], 3]", "Daily price points."),
+        (
+            "One-month OHLCV chart",
+            "[[tuple], 3, null, null, null, null, null, 1]",
+            "Daily candle rows with open, close, high, low, timestamp, and volume.",
+        ),
+    ],
+    "gXxkFd": [
+        (
+            "Key statistics / ratios",
+            '[["SYMBOL", "EXCHANGE"]]',
+            "Compact numeric ratio vector; individual field labels still need mapping.",
+        )
+    ],
+    "Pr8h2e": [("Financials / estimates", "[[tuple], null, 1]", "Financial statement and estimate arrays.")],
+    "kA4MVd": [
+        ("Market news feed", "[2, 12, [tuple]]", "General market or related news list."),
+        ("Security news feed", "[5, 12, [tuple]]", "Company/security-specific article list."),
+    ],
+    "RiQiSd": [
+        ("Empty initialization endpoint", "[null, null, 25]", "Initialization request that returns an empty payload.")
+    ],
+    "X12h2b": [("Empty initialization endpoint", "[]", "Initialization request that returns an empty payload.")],
+}
+
+
+@dataclass(frozen=True)
+class _MetadataCandidate:
+    score: int
+    metadata: EndpointMetadata
 
 
 def metadata_for_dataset(
@@ -139,61 +220,20 @@ def metadata_for_dataset(
     source_path: str = "/finance/beta",
 ) -> EndpointMetadata:
     if "/quote/" in source_path:
-        quote_purpose = QUOTE_PAGE_DATASET_PURPOSES.get(dataset_key)
-        if quote_purpose:
-            purpose, request_shape, description = quote_purpose
-            return EndpointMetadata(
-                dataset_key=dataset_key,
-                current_rpc_id=current_rpc_id,
-                purpose=purpose,
-                request_shape=request_shape,
-                slug=_slug(purpose),
-                source="google-finance-quote-dataset-key",
-                description=description,
-                reference_rpc_ids=tuple(
-                    rpc_id
-                    for rpc_id, metadata in ARTICLE_REFERENCE_RPC_PURPOSES.items()
-                    if metadata["purpose"] == purpose
-                ),
-            )
-
-        if current_rpc_id == "gCvqoe" and _is_quote_request(request):
-            return EndpointMetadata(
-                dataset_key=dataset_key,
-                current_rpc_id=current_rpc_id,
-                purpose="Quote",
-                request_shape="[[tuple], 1] or [[tuple]]",
-                slug="quote",
-                source="google-finance-quote-request-shape",
-                description="Main quote payload for the requested security.",
-                reference_rpc_ids=("xh8wxf",),
-            )
-
-        if _is_company_info_like_request(request):
-            return EndpointMetadata(
-                dataset_key=dataset_key,
-                current_rpc_id=current_rpc_id,
-                purpose="Security tuple endpoint",
-                request_shape="[[tuple]]",
-                slug="security_tuple_endpoint",
-                source="google-finance-quote-request-shape",
-                description="Company/security tuple endpoint inferred from the request shape.",
-                reference_rpc_ids=("HqGpWd", "uwlMvd", "o6pODe", "yYvDpf"),
-            )
-
-        inferred = _infer_from_request(request)
-        if inferred:
-            purpose, request_shape, reference_rpc_ids = inferred
-            return EndpointMetadata(
-                dataset_key=dataset_key,
-                current_rpc_id=current_rpc_id,
-                purpose=purpose,
-                request_shape=request_shape,
-                slug=_slug(purpose),
-                source="google-finance-quote-request-shape",
-                description="Purpose inferred from the live quote-page request shape.",
-                reference_rpc_ids=reference_rpc_ids,
-            )
+        candidates = [
+            *_rpc_candidates(dataset_key, current_rpc_id, request),
+            *_dataset_hint_candidates(
+                dataset_key,
+                current_rpc_id,
+                request,
+                QUOTE_PAGE_DATASET_PURPOSES,
+                source="runtime-compiled-quote-dataset-key",
+                justification_prefix="quote-page dataset hint",
+            ),
+            *_shape_candidates(dataset_key, current_rpc_id, request, source="runtime-compiled-quote-request-shape"),
+        ]
+        if candidates:
+            return max(candidates, key=lambda candidate: candidate.score).metadata
 
         return EndpointMetadata(
             dataset_key=dataset_key,
@@ -201,39 +241,24 @@ def metadata_for_dataset(
             purpose=f"Quote page dataset {dataset_key}",
             request_shape=_request_shape(request),
             slug=f"quote_page_{dataset_key.replace(':', '_')}",
-            source="google-finance-quote-dataset-key",
+            source="runtime-compiled-quote-unknown",
             description="Quote-page dataset discovered from AF_dataServiceRequests; purpose is not mapped yet.",
+            justification=("No runtime RPC, dataset-key, or request-shape rule matched the live request.",),
         )
 
-    beta_purpose = BETA_DATASET_PURPOSES.get(dataset_key)
-    if beta_purpose:
-        purpose, request_shape, description = beta_purpose
-        return EndpointMetadata(
-            dataset_key=dataset_key,
-            current_rpc_id=current_rpc_id,
-            purpose=purpose,
-            request_shape=request_shape,
-            slug=_slug(purpose),
-            source="google-finance-beta-dataset-key",
-            description=description,
-            reference_rpc_ids=tuple(
-                rpc_id for rpc_id, metadata in ARTICLE_REFERENCE_RPC_PURPOSES.items() if metadata["purpose"] == purpose
-            ),
-        )
-
-    inferred = _infer_from_request(request)
-    if inferred:
-        purpose, request_shape, reference_rpc_ids = inferred
-        return EndpointMetadata(
-            dataset_key=dataset_key,
-            current_rpc_id=current_rpc_id,
-            purpose=purpose,
-            request_shape=request_shape,
-            slug=_slug(purpose),
-            source="live-af_dataServiceRequests-request-shape",
-            description="Purpose inferred from the live request shape.",
-            reference_rpc_ids=reference_rpc_ids,
-        )
+    candidates = [
+        *_dataset_hint_candidates(
+            dataset_key,
+            current_rpc_id,
+            request,
+            BETA_DATASET_PURPOSES,
+            source="runtime-compiled-beta-dataset-key",
+            justification_prefix="beta home-page dataset hint",
+        ),
+        *_shape_candidates(dataset_key, current_rpc_id, request, source="runtime-compiled-request-shape"),
+    ]
+    if candidates:
+        return max(candidates, key=lambda candidate: candidate.score).metadata
 
     return EndpointMetadata(
         dataset_key=dataset_key,
@@ -241,8 +266,123 @@ def metadata_for_dataset(
         purpose=f"Dataset {dataset_key}",
         request_shape="Discovered from AF_dataServiceRequests; purpose not inferred from request shape.",
         slug=dataset_key.replace(":", "_"),
-        source="live-af_dataServiceRequests",
+        source="runtime-compiled-unknown",
         description="Dataset discovered from AF_dataServiceRequests; purpose is not mapped yet.",
+        justification=("No runtime dataset-key or request-shape rule matched the live request.",),
+    )
+
+
+def _rpc_candidates(dataset_key: str, current_rpc_id: str, request: JSONValue) -> list[_MetadataCandidate]:
+    candidates: list[_MetadataCandidate] = []
+    for purpose, request_shape, description in QUOTE_RPC_PURPOSES.get(current_rpc_id, []):
+        if _request_matches_shape(request, request_shape):
+            candidates.append(
+                _MetadataCandidate(
+                    100,
+                    _metadata(
+                        dataset_key,
+                        current_rpc_id,
+                        purpose,
+                        request_shape,
+                        source="runtime-compiled-rpc-id",
+                        description=description,
+                        justification=(
+                            f"Live RPC id {current_rpc_id} is a known Google Finance method for {purpose}.",
+                            f"Live request matches {request_shape}.",
+                        ),
+                    ),
+                )
+            )
+    return candidates
+
+
+def _dataset_hint_candidates(
+    dataset_key: str,
+    current_rpc_id: str,
+    request: JSONValue,
+    hints: dict[str, tuple[str, str, str]],
+    *,
+    source: str,
+    justification_prefix: str,
+) -> list[_MetadataCandidate]:
+    hint = hints.get(dataset_key)
+    if not hint:
+        return []
+
+    purpose, request_shape, description = hint
+    if not _request_matches_shape(request, request_shape):
+        return []
+
+    return [
+        _MetadataCandidate(
+            60,
+            _metadata(
+                dataset_key,
+                current_rpc_id,
+                purpose,
+                request_shape,
+                source=source,
+                description=description,
+                justification=(
+                    f"Live {justification_prefix} {dataset_key} maps to {purpose}.",
+                    f"Live request matches {request_shape}.",
+                ),
+            ),
+        )
+    ]
+
+
+def _shape_candidates(dataset_key: str, current_rpc_id: str, request: JSONValue, *, source: str) -> list[_MetadataCandidate]:
+    inferred = _infer_from_request(request)
+    if not inferred:
+        return []
+
+    purpose, request_shape, reference_rpc_ids = inferred
+    return [
+        _MetadataCandidate(
+            40,
+            EndpointMetadata(
+                dataset_key=dataset_key,
+                current_rpc_id=current_rpc_id,
+                purpose=purpose,
+                request_shape=request_shape,
+                slug=_slug(purpose),
+                source=source,
+                description="Purpose inferred from the live AF_dataServiceRequests request shape.",
+                reference_rpc_ids=reference_rpc_ids,
+                justification=(f"Live request matches generic shape {request_shape}.",),
+            ),
+        )
+    ]
+
+
+def _metadata(
+    dataset_key: str,
+    current_rpc_id: str,
+    purpose: str,
+    request_shape: str,
+    *,
+    source: str,
+    description: str,
+    justification: tuple[str, ...],
+) -> EndpointMetadata:
+    return EndpointMetadata(
+        dataset_key=dataset_key,
+        current_rpc_id=current_rpc_id,
+        purpose=purpose,
+        request_shape=request_shape,
+        slug=_slug(purpose),
+        source=source,
+        description=description,
+        reference_rpc_ids=_reference_rpc_ids_for_purpose(purpose),
+        justification=justification,
+    )
+
+
+def _reference_rpc_ids_for_purpose(purpose: str) -> tuple[str, ...]:
+    normalized = purpose.lower()
+    return tuple(
+        rpc_id for rpc_id, metadata in ARTICLE_REFERENCE_RPC_PURPOSES.items() if metadata["purpose"].lower() == normalized
     )
 
 
@@ -251,6 +391,78 @@ def _request_shape(request: JSONValue) -> str:
         return json.dumps(request, separators=(",", ":"))
     except TypeError:
         return "Discovered from AF_dataServiceRequests; request shape is not JSON serializable."
+
+
+def _request_matches_shape(request: JSONValue, request_shape: str) -> bool:
+    normalized = re.sub(r"\s+", "", request_shape)
+    if normalized == "[1]":
+        return request == [1]
+    if normalized == "[0]":
+        return request == [0]
+    if normalized == "[18]":
+        return request == [18]
+    if normalized == "[1,0,2]":
+        return request == [1, 0, 2]
+    if normalized == "[3,1]":
+        return request == [3, 1]
+    if normalized == "[6,1]":
+        return request == [6, 1]
+    if normalized == "[8]":
+        return request == [8]
+    if normalized == "[2,20]":
+        return request == [2, 20]
+    if normalized == "[null,[null,1]]":
+        return request == [None, [None, 1]]
+    if normalized == '["market_summary",1]':
+        return request == ["market_summary", 1]
+    if normalized == "[]":
+        return request == []
+    if normalized == "[null,null,25]":
+        return request == [None, None, 25]
+    if normalized == "[[categories],count,offset]":
+        return _is_market_movers_request(request)
+    if normalized == "[tuple]":
+        return isinstance(request, list) and len(request) == 1 and _looks_like_tuple(request[0])
+    if normalized == "[tuple,4]":
+        return isinstance(request, list) and len(request) == 2 and _looks_like_tuple(request[0]) and request[1] == 4
+    if normalized == "[[tuple]]":
+        return _is_company_info_like_request(request)
+    if normalized == "[[tuple],1]":
+        return _is_quote_request(request) and len(request) == 2 and request[1] == 1
+    if normalized == "[[tuple],null,1]":
+        return (
+            isinstance(request, list)
+            and len(request) == 3
+            and _looks_like_tuple_group(request[0])
+            and request[1] is None
+            and request[2] == 1
+        )
+    if normalized == "[[tuple],1,1,1]":
+        return (
+            isinstance(request, list)
+            and len(request) == 4
+            and _looks_like_tuple_group(request[0])
+            and request[1:] == [1, 1, 1]
+        )
+    if normalized == "[[tuple],3]":
+        return _is_chart_request(request) and len(request) == 2 and request[1] == 3
+    if normalized == "[[tuple],1,null,null,null,null,null,1]":
+        return _is_ohlcv_chart_request(request, mode=1)
+    if normalized == "[[tuple],3,null,null,null,null,null,1]":
+        return _is_ohlcv_chart_request(request, mode=3)
+    if normalized == '[["SYMBOL","EXCHANGE"]]':
+        return (
+            isinstance(request, list)
+            and len(request) == 1
+            and isinstance(request[0], list)
+            and len(request[0]) == 2
+            and all(isinstance(item, str) for item in request[0])
+        )
+    if normalized == "[2,12,[tuple]]":
+        return _is_news_request(request) and request[0] == 2 and request[1] == 12
+    if normalized == "[5,12,[tuple]]":
+        return _is_news_request(request) and request[0] == 5 and request[1] == 12
+    return False
 
 
 def _infer_from_request(request: JSONValue) -> tuple[str, str, tuple[str, ...]] | None:
@@ -264,6 +476,8 @@ def _infer_from_request(request: JSONValue) -> tuple[str, str, tuple[str, ...]] 
         return "Top stocks by metric", "[6, 1]", ("qt5Q2d",)
     if request == [None, [None, 1]]:
         return "Equity sectors", "[null, [null, 1]]", ()
+    if _is_empty_initialization_request(request):
+        return "Empty initialization endpoint", "[null, null, count]", ()
     if request == []:
         return "Empty request endpoint", "[]", ("JFUMjd", "mysBRb")
     if _is_market_movers_request(request):
@@ -305,6 +519,16 @@ def _is_market_summary_request(request: JSONValue) -> bool:
     )
 
 
+def _is_empty_initialization_request(request: JSONValue) -> bool:
+    return (
+        isinstance(request, list)
+        and len(request) == 3
+        and request[0] is None
+        and request[1] is None
+        and isinstance(request[2], int)
+    )
+
+
 def _is_ticker_context_request(request: JSONValue) -> bool:
     return (
         isinstance(request, list)
@@ -316,6 +540,17 @@ def _is_ticker_context_request(request: JSONValue) -> bool:
 
 def _is_chart_request(request: JSONValue) -> bool:
     return isinstance(request, list) and len(request) == 2 and _looks_like_tuple_group(request[0]) and isinstance(request[1], int)
+
+
+def _is_ohlcv_chart_request(request: JSONValue, *, mode: int) -> bool:
+    return (
+        isinstance(request, list)
+        and len(request) == 8
+        and _looks_like_tuple_group(request[0])
+        and request[1] == mode
+        and request[2:7] == [None, None, None, None, None]
+        and request[7] == 1
+    )
 
 
 def _is_quote_request(request: JSONValue) -> bool:
