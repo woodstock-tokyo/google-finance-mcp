@@ -71,6 +71,9 @@ python -m PyInstaller \
 BINARY="$BUILD_DIR/bin/google-finance-mcp"
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
+  # This is an ad-hoc signature for local Mach-O compatibility only. It is free
+  # and does not require an Apple Developer ID; the installer package below is
+  # intentionally unsigned for open-source distribution.
   codesign --force --sign - --timestamp=none "$BINARY"
   codesign --verify --verbose "$BINARY"
 fi
@@ -83,12 +86,32 @@ mkdir -p "$PKGROOT/usr/local/bin"
 cp "$BINARY" "$PKGROOT/usr/local/bin/google-finance-mcp"
 
 PKG="$DIST_DIR/google-finance-mcp-${VERSION}-macos-${ARCH}.pkg"
+# pkgbuild creates an unsigned component package with PackageInfo, Payload, and
+# Bom entries. The Bom is the installer bill of materials used for receipts and
+# file verification; it is not a Developer ID signature or notarization ticket.
 pkgbuild \
   --root "$PKGROOT" \
   --identifier "$PKG_IDENTIFIER" \
   --version "$PACKAGE_VERSION" \
   --install-location / \
   "$PKG"
+
+PKG_EXPANDED="$BUILD_DIR/pkg-expanded"
+PKG_BOM_LISTING="$BUILD_DIR/pkg-bom.txt"
+rm -rf "$PKG_EXPANDED"
+pkgutil --expand "$PKG" "$PKG_EXPANDED"
+
+if [[ ! -f "$PKG_EXPANDED/Bom" ]]; then
+  echo "Expected pkgbuild to create a Bom file in $PKG" >&2
+  exit 1
+fi
+
+lsbom "$PKG_EXPANDED/Bom" > "$PKG_BOM_LISTING"
+
+if ! grep -q "usr/local/bin/google-finance-mcp" "$PKG_BOM_LISTING"; then
+  echo "Package Bom does not include /usr/local/bin/google-finance-mcp" >&2
+  exit 1
+fi
 
 (
   cd "$DIST_DIR"

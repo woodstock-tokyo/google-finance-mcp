@@ -184,9 +184,10 @@ install Python first.
 
 #### macOS
 
-For non-developer Mac users, the easiest artifact is the macOS `.pkg` installer.
-Download the file for the user's CPU architecture, double-click it, and it
-installs the standalone command here:
+For Mac users who prefer an installer, download the `.pkg` for the user's CPU
+architecture. The package is built with Apple's `pkgbuild` root-package flow,
+which creates the standard installer `Bom` bill of materials and installs the
+standalone command here:
 
 ```text
 /usr/local/bin/google-finance-mcp
@@ -206,10 +207,16 @@ shell `PATH` that includes `/usr/local/bin`:
 }
 ```
 
-Release builds are ad-hoc signed, not notarized with an Apple Developer ID. On a
-fresh Mac, Gatekeeper may still show an “unidentified developer” warning. If
-double-clicking is blocked, right-click the `.pkg`, choose Open, and confirm that
-you want to run it.
+The macOS `.pkg` is intentionally distributed as an unsigned open-source
+installer so the project does not require a paid Apple Developer ID account. The
+release script verifies that the generated package contains a valid `Bom` entry
+for `/usr/local/bin/google-finance-mcp`.
+
+The `Bom` makes the installer package structurally correct, but it is not an
+Apple Developer ID signature and it is not notarization. On a fresh Mac,
+Gatekeeper may still show “Apple could not verify this package is free of
+malware” for downloaded `.pkg` files. If that warning is unacceptable, use the
+macOS `.tar.gz` artifact or the Python/`uv` source install path instead.
 
 The release also includes a macOS `.tar.gz` containing the same standalone binary
 for users who prefer manual installation.
@@ -338,6 +345,11 @@ bash scripts/build-macos-release.sh
 bash scripts/build-linux-release.sh
 pwsh scripts/build-windows-release.ps1
 ```
+
+The macOS build script creates an unsigned `pkgbuild` component package and
+verifies its installer `Bom` before publishing the `.pkg` artifact. This avoids a
+paid Apple Developer ID dependency, but it does not bypass Gatekeeper's trust
+checks for downloaded installers.
 
 GitHub releases are built automatically by `.github/workflows/release.yml` when a
 `v*` tag is pushed. The workflow uploads:

@@ -1,3 +1,4 @@
+LICENSE
 README.md
 pyproject.toml
 src/google_finance_mcp/__init__.py
