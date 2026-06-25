@@ -1,0 +1,151 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: Build macOS ${{ matrix.arch }} installer
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            arch: x86_64
+          - runner: macos-14
+            arch: arm64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Verify runner architecture
+        run: test "$(uname -m)" = "${{ matrix.arch }}"
+
+      - name: Set release version
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "RELEASE_VERSION=${GITHUB_REF_NAME}" >> "${GITHUB_ENV}"
+          else
+            echo "RELEASE_VERSION=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> "${GITHUB_ENV}"
+          fi
+
+      - name: Build macOS binary and installer
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: VERSION="${RELEASE_VERSION}" bash scripts/build-macos-release.sh
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-finance-mcp-macos-${{ matrix.arch }}
+          path: dist/macos-release/*
+          if-no-files-found: error
+
+      - name: Upload GitHub release assets
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/macos-release/*
+          fail_on_unmatched_files: true
+
+  linux:
+    name: Build Linux x86_64 binary
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Set release version
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "RELEASE_VERSION=${GITHUB_REF_NAME}" >> "${GITHUB_ENV}"
+          else
+            echo "RELEASE_VERSION=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> "${GITHUB_ENV}"
+          fi
+
+      - name: Build Linux binary
+        env:
+          ARCH: x86_64
+        run: VERSION="${RELEASE_VERSION}" bash scripts/build-linux-release.sh
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-finance-mcp-linux-x86_64
+          path: dist/linux-release/*
+          if-no-files-found: error
+
+      - name: Upload GitHub release assets
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/linux-release/*
+          fail_on_unmatched_files: true
+
+  windows:
+    name: Build Windows x86_64 executable
+    runs-on: windows-2022
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Set release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "RELEASE_VERSION=${GITHUB_REF_NAME}" >> "${GITHUB_ENV}"
+          else
+            echo "RELEASE_VERSION=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> "${GITHUB_ENV}"
+          fi
+
+      - name: Build Windows executable
+        env:
+          ARCH: x86_64
+        shell: pwsh
+        run: |
+          $env:VERSION = $env:RELEASE_VERSION
+          ./scripts/build-windows-release.ps1
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-finance-mcp-windows-x86_64
+          path: dist/windows-release/*
+          if-no-files-found: error
+
+      - name: Upload GitHub release assets
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/windows-release/*
+          fail_on_unmatched_files: true
