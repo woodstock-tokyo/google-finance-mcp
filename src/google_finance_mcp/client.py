@@ -4,7 +4,7 @@ import ast
 import json
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import urlencode, urlsplit
@@ -15,6 +15,7 @@ import httpx
 from .rpc_metadata import EndpointMetadata, metadata_for_dataset
 
 JSONValue = Any
+UTC = timezone.utc
 
 BETA_URL = "https://www.google.com/finance/beta"
 DEFAULT_SOURCE_PATH = "/finance/beta"

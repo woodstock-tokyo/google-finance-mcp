@@ -1,12 +1,26 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from collections.abc import Awaitable, Callable
+from datetime import datetime, timezone
+from typing import Any, cast
 
 import pytest
 
 from google_finance_mcp.client import ApiMapping, CachePolicy, DataServiceRequest
 from google_finance_mcp.rpc_metadata import metadata_for_dataset
 from google_finance_mcp import server
+
+UTC = timezone.utc
+
+
+async def _list_tools() -> list[Any]:
+    list_tools = cast(Callable[[], Awaitable[list[Any]]], getattr(server, "list_tools"))
+    return await list_tools()
+
+
+async def _call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    call_tool = cast(Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]], getattr(server, "call_tool"))
+    return await call_tool(name, arguments)
 
 
 class FakeClient:
@@ -41,21 +55,22 @@ class FakeClient:
 async def test_dynamic_tool_uses_rpc_purpose(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(server, "client", FakeClient())
 
-    tools = await server.list_tools()
+    tools = await _list_tools()
     names = [tool.name for tool in tools]
 
     assert "google_finance_ds_8_market_movers" in names
     tool = next(tool for tool in tools if tool.name == "google_finance_ds_8_market_movers")
-    assert "Market movers" in tool.description
-    assert "Market mover lists by category, count, and offset." in tool.description
-    assert "changedHash" in tool.description
+    description = str(tool.description or "")
+    assert "Market movers" in description
+    assert "Market mover lists by category, count, and offset." in description
+    assert "changedHash" in description
 
 
 @pytest.mark.anyio
 async def test_dynamic_purpose_tool_calls_dataset(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(server, "client", FakeClient())
 
-    result = await server.call_tool("google_finance_ds_8_market_movers", {})
+    result = await _call_tool("google_finance_ds_8_market_movers", {})
 
     assert result == {"dataset_key": "ds:8", "request_override": None}
 
@@ -68,7 +83,7 @@ async def test_quote_dataset_tool_uses_quote_page_path(monkeypatch: pytest.Monke
 
     monkeypatch.setattr(server, "client", RecordingClient())
 
-    result = await server.call_tool(
+    result = await _call_tool(
         "google_finance_call_quote_dataset",
         {"symbol": "nvda", "exchange": "nasdaq", "dataset_key": "ds:12"},
     )
@@ -86,7 +101,7 @@ async def test_call_rpc_defaults_to_classic_endpoint(monkeypatch: pytest.MonkeyP
 
     monkeypatch.setattr(server, "client", RecordingClient())
 
-    result = await server.call_tool("google_finance_call_rpc", {"rpc_id": "xh8wxf", "request": [[[None, ["GOOGL", "NASDAQ"]]], 1]})
+    result = await _call_tool("google_finance_call_rpc", {"rpc_id": "xh8wxf", "request": [[[None, ["GOOGL", "NASDAQ"]]], 1]})
 
     assert result["kwargs"]["batchexecute_url"].endswith("/finance/_/GoogleFinanceUi/data/batchexecute")
 
@@ -99,7 +114,7 @@ async def test_call_rpc_can_use_finhub_endpoint(monkeypatch: pytest.MonkeyPatch)
 
     monkeypatch.setattr(server, "client", RecordingClient())
 
-    result = await server.call_tool(
+    result = await _call_tool(
         "google_finance_call_rpc",
         {"rpc_id": "gCvqoe", "request": [[[None, ["NVDA", "NASDAQ"]]], 1], "endpoint_family": "finhub"},
     )

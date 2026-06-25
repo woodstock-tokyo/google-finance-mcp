@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -18,6 +18,8 @@ from google_finance_mcp.client import (
     parse_mapping_from_html,
 )
 from google_finance_mcp.rpc_metadata import metadata_for_dataset
+
+UTC = timezone.utc
 
 
 def test_parse_mapping_from_google_finance_html() -> None:
