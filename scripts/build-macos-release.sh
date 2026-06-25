@@ -15,11 +15,13 @@ ARCH="${ARCH:-$(uname -m)}"
 DIST_DIR="${DIST_DIR:-dist/macos-release}"
 BUILD_DIR="${BUILD_DIR:-build/macos-release/$ARCH}"
 PKG_IDENTIFIER="${PKG_IDENTIFIER:-io.github.google-finance-mcp.cli}"
+MACOS_ENTITLEMENTS="${MACOS_ENTITLEMENTS:-packaging/macos/entitlements.plist}"
 
 case "$ARCH" in
-  arm64|x86_64) ;;
+  arm64) ;;
   *)
-    echo "Unsupported macOS architecture: $ARCH" >&2
+    echo "Unsupported macOS release architecture: $ARCH" >&2
+    echo "Only arm64 macOS release installers are built." >&2
     exit 1
     ;;
 esac
@@ -71,11 +73,28 @@ python -m PyInstaller \
 BINARY="$BUILD_DIR/bin/google-finance-mcp"
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
-  # This is an ad-hoc signature for local Mach-O compatibility only. It is free
-  # and does not require an Apple Developer ID; the installer package below is
-  # intentionally unsigned for open-source distribution.
-  codesign --force --sign - --timestamp=none "$BINARY"
+  if [[ ! -f "$MACOS_ENTITLEMENTS" ]]; then
+    echo "Missing macOS entitlements file: $MACOS_ENTITLEMENTS" >&2
+    exit 1
+  fi
+
+  # This is an ad-hoc Hardened Runtime signature for local Mach-O compatibility
+  # only. It is free and does not require an Apple Developer ID; the installer
+  # package below is intentionally unsigned for open-source distribution.
+  codesign \
+    --force \
+    --sign - \
+    --timestamp=none \
+    --options runtime \
+    --entitlements "$MACOS_ENTITLEMENTS" \
+    "$BINARY"
   codesign --verify --verbose "$BINARY"
+
+  if ! codesign --display --entitlements - "$BINARY" 2>/dev/null \
+    | grep -q "com.apple.security.cs.disable-library-validation"; then
+    echo "Signed binary is missing disable-library-validation entitlement" >&2
+    exit 1
+  fi
 fi
 
 TARBALL="$DIST_DIR/google-finance-mcp-${VERSION}-macos-${ARCH}.tar.gz"

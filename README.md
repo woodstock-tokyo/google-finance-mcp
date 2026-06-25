@@ -184,9 +184,9 @@ install Python first.
 
 #### macOS
 
-For Mac users who prefer an installer, download the `.pkg` for the user's CPU
-architecture. The package is built with Apple's `pkgbuild` root-package flow,
-which creates the standard installer `Bom` bill of materials and installs the
+For Apple Silicon Mac users who prefer an installer, download the macOS `arm64`
+`.pkg`. The package is built with Apple's `pkgbuild` root-package flow, which
+creates the standard installer `Bom` bill of materials and installs the
 standalone command here:
 
 ```text
@@ -212,14 +212,20 @@ installer so the project does not require a paid Apple Developer ID account. The
 release script verifies that the generated package contains a valid `Bom` entry
 for `/usr/local/bin/google-finance-mcp`.
 
+The bundled PyInstaller binary is ad-hoc signed with Hardened Runtime and the
+`com.apple.security.cs.disable-library-validation` entitlement so its extracted
+Python libraries can load correctly at runtime. This entitlement is not a
+Developer ID signature and does not notarize the installer.
+
 The `Bom` makes the installer package structurally correct, but it is not an
 Apple Developer ID signature and it is not notarization. On a fresh Mac,
 Gatekeeper may still show “Apple could not verify this package is free of
 malware” for downloaded `.pkg` files. If that warning is unacceptable, use the
 macOS `.tar.gz` artifact or the Python/`uv` source install path instead.
 
-The release also includes a macOS `.tar.gz` containing the same standalone binary
-for users who prefer manual installation.
+The release also includes a macOS `arm64` `.tar.gz` containing the same
+standalone binary for users who prefer manual installation. Intel Mac users
+should use the Python/`uv` source install path.
 
 #### Linux
 
@@ -354,8 +360,7 @@ checks for downloaded installers.
 GitHub releases are built automatically by `.github/workflows/release.yml` when a
 `v*` tag is pushed. The workflow uploads:
 
-- macOS Intel (`x86_64`) and Apple Silicon (`arm64`) `.pkg`, `.tar.gz`, and
-  `.sha256` files.
+- macOS Apple Silicon (`arm64`) `.pkg`, `.tar.gz`, and `.sha256` files.
 - Linux `x86_64` `.tar.gz` and `.sha256` files.
 - Windows `x86_64` `.zip` and `.sha256` files.
 
