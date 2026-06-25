@@ -170,9 +170,126 @@ quote pages can both define `ds:0`, `ds:1`, and so on without sharing meaning.
 
 Requirements:
 
-- Python 3.11 or newer.
+- Python 3.10 or newer. The upstream `mcp` Python SDK does not publish
+  installable releases for Python 3.9, which is what many clean macOS installs
+  expose as `/usr/bin/python3` after installing the Command Line Tools.
 - Network access to `www.google.com` at runtime.
 - An MCP client that can launch stdio servers.
+
+### Release downloads without Python
+
+GitHub releases include standalone binaries for macOS, Linux, and Windows. These
+artifacts bundle Python and the project dependencies, so users do not need to
+install Python first.
+
+#### macOS
+
+For non-developer Mac users, the easiest artifact is the macOS `.pkg` installer.
+Download the file for the user's CPU architecture, double-click it, and it
+installs the standalone command here:
+
+```text
+/usr/local/bin/google-finance-mcp
+```
+
+Use that absolute path in GUI MCP clients, because desktop apps may not inherit a
+shell `PATH` that includes `/usr/local/bin`:
+
+```json
+{
+  "mcpServers": {
+    "google-finance": {
+      "command": "/usr/local/bin/google-finance-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+Release builds are ad-hoc signed, not notarized with an Apple Developer ID. On a
+fresh Mac, Gatekeeper may still show an “unidentified developer” warning. If
+double-clicking is blocked, right-click the `.pkg`, choose Open, and confirm that
+you want to run it.
+
+The release also includes a macOS `.tar.gz` containing the same standalone binary
+for users who prefer manual installation.
+
+#### Linux
+
+Download the Linux `.tar.gz`, extract it, and place the binary somewhere stable,
+for example `/usr/local/bin`:
+
+```bash
+tar -xzf google-finance-mcp-0.1.0-linux-x86_64.tar.gz
+sudo install -m 755 google-finance-mcp /usr/local/bin/google-finance-mcp
+```
+
+Then configure the MCP client with the absolute path:
+
+```json
+{
+  "mcpServers": {
+    "google-finance": {
+      "command": "/usr/local/bin/google-finance-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+Linux release binaries are built on Ubuntu 22.04 for `x86_64`. Very old Linux
+distributions with older glibc versions may need the Python source install path
+instead.
+
+#### Windows
+
+Download the Windows `.zip`, extract it to a stable folder, and point the MCP
+client at the `.exe`:
+
+```json
+{
+  "mcpServers": {
+    "google-finance": {
+      "command": "C:\\Users\\you\\Apps\\google-finance-mcp\\google-finance-mcp.exe",
+      "args": []
+    }
+  }
+}
+```
+
+Windows release builds are not Authenticode-signed yet. Windows SmartScreen may
+show a “Windows protected your PC” warning on first run; choose More info, then
+Run anyway if you trust the downloaded GitHub release artifact.
+
+### Python install from source
+
+If `python3 --version` reports Python 3.9, `python3 -m pip install ...` cannot
+install this package because its `mcp>=1.0` dependency requires Python 3.10+.
+The easiest path is to let `uv` use a managed interpreter instead of asking the
+user to install Homebrew Python or a Python.org framework build:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+cd google-finance-mcp
+uv tool install --python 3.11 .
+```
+
+This installs the `google-finance-mcp` console script as a user tool. `uv` may
+download a private Python into its cache if macOS does not already have a
+compatible interpreter; it does not replace the system `python3`.
+
+There is not a supported install path that keeps using macOS's Python 3.9,
+because the official MCP Python SDK does not publish Python 3.9-compatible
+releases.
+
+For local development from a checkout, use the same managed-Python approach:
+
+```bash
+cd google-finance-mcp
+uv venv --python 3.11
+uv pip install -e ".[dev]"
+uv run pytest -q
+```
 
 Install from a source checkout for local development:
 
@@ -214,6 +331,22 @@ You can also run the module entry point without relying on the console script:
 python -m google_finance_mcp
 ```
 
+To build release artifacts locally:
+
+```bash
+bash scripts/build-macos-release.sh
+bash scripts/build-linux-release.sh
+pwsh scripts/build-windows-release.ps1
+```
+
+GitHub releases are built automatically by `.github/workflows/release.yml` when a
+`v*` tag is pushed. The workflow uploads:
+
+- macOS Intel (`x86_64`) and Apple Silicon (`arm64`) `.pkg`, `.tar.gz`, and
+  `.sha256` files.
+- Linux `x86_64` `.tar.gz` and `.sha256` files.
+- Windows `x86_64` `.zip` and `.sha256` files.
+
 ## MCP client configuration
 
 For a local editable install, point your MCP client at the virtualenv console
@@ -230,7 +363,8 @@ script so it always uses this checkout:
 }
 ```
 
-For a globally installed wheel or package, the shorter command is enough:
+For a globally installed wheel or package, the shorter command is enough in
+terminal-launched clients:
 
 ```json
 {
