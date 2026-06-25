@@ -1,5 +1,8 @@
 httpx>=0.27
-mcp>=1.0
+mcp<2,>=1.0
 
 [dev]
 pytest>=8
+
+[release]
+pyinstaller<7,>=6
