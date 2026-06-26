@@ -91,7 +91,7 @@ Download the Linux `.tar.gz`, extract it, and place the binary somewhere stable,
 for example `/usr/local/bin`:
 
 ```bash
-tar -xzf google-finance-mcp-0.1.0-linux-x86_64.tar.gz
+tar -xzf google-finance-mcp-v0.1.0-linux-x86_64.tar.gz
 sudo install -m 755 google-finance-mcp /usr/local/bin/google-finance-mcp
 ```
 
@@ -217,8 +217,13 @@ verifies its installer `Bom` before publishing the `.pkg` artifact. This avoids 
 paid Apple Developer ID dependency, but it does not bypass Gatekeeper's trust
 checks for downloaded installers.
 
-GitHub releases are built automatically by `.github/workflows/release.yml` when a
-`v*` tag is pushed. The workflow uploads:
+GitHub release assets are built automatically by `.github/workflows/release.yml`
+when a GitHub Release is published. The workflow uploads the generated files to
+that Release, so direct download URLs such as
+`https://github.com/woodstock-tokyo/google-finance-mcp/releases/download/v0.1.0/google-finance-mcp-v0.1.0-macos-arm64.pkg`
+work with `curl`.
+
+The workflow uploads:
 
 - macOS Apple Silicon (`arm64`) `.pkg`, `.tar.gz`, and `.sha256` files.
 - Linux `x86_64` `.tar.gz` and `.sha256` files.

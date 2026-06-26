@@ -1,17 +1,53 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - master
-    tags:
-      - "v*"
-  workflow_dispatch:
+  release:
+    types: [published]
+
+env:
+  RELEASE_VERSION: ${{ github.event.release.tag_name }}
 
 permissions:
   contents: write
 
 jobs:
+  sync-readme:
+    name: Update README release examples
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Update README release version
+        run: python scripts/update-readme-release-version.py "${RELEASE_VERSION}"
+
+      - name: Refresh package metadata
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Commit README release version
+        run: |
+          if git diff --quiet -- README.md src/google_finance_mcp.egg-info/PKG-INFO src/google_finance_mcp.egg-info/SOURCES.txt; then
+            echo "README release examples already match ${RELEASE_VERSION}."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md src/google_finance_mcp.egg-info/PKG-INFO src/google_finance_mcp.egg-info/SOURCES.txt
+          git commit -m "docs: update release download version to ${RELEASE_VERSION}"
+          git push origin HEAD:${{ github.event.repository.default_branch }}
+
   macos:
     name: Build macOS arm64 installer
     runs-on: macos-14
@@ -29,14 +65,6 @@ jobs:
       - name: Verify runner architecture
         run: test "$(uname -m)" = "arm64"
 
-      - name: Set release version
-        run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            echo "RELEASE_VERSION=${GITHUB_REF_NAME}" >> "${GITHUB_ENV}"
-          else
-            echo "RELEASE_VERSION=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> "${GITHUB_ENV}"
-          fi
-
       - name: Build macOS binary and installer
         env:
           ARCH: arm64
@@ -48,13 +76,6 @@ jobs:
           name: google-finance-mcp-macos-arm64
           path: dist/macos-release/*
           if-no-files-found: error
-
-      - name: Upload GitHub release assets
-        if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/macos-release/*
-          fail_on_unmatched_files: true
 
   linux:
     name: Build Linux x86_64 binary
@@ -70,14 +91,6 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Set release version
-        run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            echo "RELEASE_VERSION=${GITHUB_REF_NAME}" >> "${GITHUB_ENV}"
-          else
-            echo "RELEASE_VERSION=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> "${GITHUB_ENV}"
-          fi
-
       - name: Build Linux binary
         env:
           ARCH: x86_64
@@ -89,13 +102,6 @@ jobs:
           name: google-finance-mcp-linux-x86_64
           path: dist/linux-release/*
           if-no-files-found: error
-
-      - name: Upload GitHub release assets
-        if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/linux-release/*
-          fail_on_unmatched_files: true
 
   windows:
     name: Build Windows x86_64 executable
@@ -110,15 +116,6 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-
-      - name: Set release version
-        shell: bash
-        run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            echo "RELEASE_VERSION=${GITHUB_REF_NAME}" >> "${GITHUB_ENV}"
-          else
-            echo "RELEASE_VERSION=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> "${GITHUB_ENV}"
-          fi
 
       - name: Build Windows executable
         env:
@@ -135,9 +132,27 @@ jobs:
           path: dist/windows-release/*
           if-no-files-found: error
 
+  publish:
+    name: Upload release assets
+    runs-on: ubuntu-22.04
+    needs:
+      - macos
+      - linux
+      - windows
+
+    steps:
+      - name: Download built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: List release assets
+        run: ls -la release-assets
+
       - name: Upload GitHub release assets
-        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/windows-release/*
+          tag_name: ${{ github.event.release.tag_name }}
+          files: release-assets/*
           fail_on_unmatched_files: true
