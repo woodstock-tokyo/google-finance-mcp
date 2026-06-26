@@ -26,7 +26,7 @@ you use an Intel Mac, skip to [Python install from source](#python-install-from-
 Open **Terminal**, paste these commands, and press Enter:
 
 ```bash
-VERSION=v0.1.0
+VERSION=v0.1.1
 curl -L -o google-finance-mcp-macos-arm64.pkg \
   "https://github.com/woodstock-tokyo/google-finance-mcp/releases/download/${VERSION}/google-finance-mcp-${VERSION}-macos-arm64.pkg"
 sudo installer -pkg google-finance-mcp-macos-arm64.pkg -target /
@@ -91,7 +91,7 @@ Download the Linux `.tar.gz`, extract it, and place the binary somewhere stable,
 for example `/usr/local/bin`:
 
 ```bash
-tar -xzf google-finance-mcp-v0.1.0-linux-x86_64.tar.gz
+tar -xzf google-finance-mcp-v0.1.1-linux-x86_64.tar.gz
 sudo install -m 755 google-finance-mcp /usr/local/bin/google-finance-mcp
 ```
 
@@ -226,7 +226,7 @@ GitHub release assets are then built by `.github/workflows/release.yml` for that
 release tag. The prepare workflow dispatches the asset builder after publishing
 the Release, and the builder uploads the generated files to that Release, so
 direct download URLs such as
-`https://github.com/woodstock-tokyo/google-finance-mcp/releases/download/v0.1.0/google-finance-mcp-v0.1.0-macos-arm64.pkg`
+`https://github.com/woodstock-tokyo/google-finance-mcp/releases/download/v0.1.1/google-finance-mcp-v0.1.1-macos-arm64.pkg`
 work with `curl`.
 
 The workflow uploads:
