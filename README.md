@@ -217,9 +217,15 @@ verifies its installer `Bom` before publishing the `.pkg` artifact. This avoids 
 paid Apple Developer ID dependency, but it does not bypass Gatekeeper's trust
 checks for downloaded installers.
 
-GitHub release assets are built automatically by `.github/workflows/release.yml`
-when a GitHub Release is published. The workflow uploads the generated files to
-that Release, so direct download URLs such as
+Release preparation starts from the version in `pyproject.toml`. When that file
+changes on `master`, `.github/workflows/prepare-release.yml` updates the README
+download examples, refreshes package metadata, creates tag `v<version>`, and
+publishes the GitHub Release for that tag.
+
+GitHub release assets are then built by `.github/workflows/release.yml` for that
+release tag. The prepare workflow dispatches the asset builder after publishing
+the Release, and the builder uploads the generated files to that Release, so
+direct download URLs such as
 `https://github.com/woodstock-tokyo/google-finance-mcp/releases/download/v0.1.0/google-finance-mcp-v0.1.0-macos-arm64.pkg`
 work with `curl`.
 

@@ -3,9 +3,14 @@ name: Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: GitHub Release tag to build assets for, for example v0.1.0
+        required: true
 
 env:
-  RELEASE_VERSION: ${{ github.event.release.tag_name }}
+  RELEASE_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
 
 permissions:
   contents: write
@@ -153,6 +158,6 @@ jobs:
       - name: Upload GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.release.tag_name }}
+          tag_name: ${{ env.RELEASE_VERSION }}
           files: release-assets/*
           fail_on_unmatched_files: true

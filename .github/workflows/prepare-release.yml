@@ -1,0 +1,109 @@
+name: Prepare Release
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - pyproject.toml
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: prepare-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Update release docs and publish tag
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Read release version from pyproject
+        run: |
+          python <<'PY' >> "$GITHUB_ENV"
+          import re
+          import tomllib
+
+          with open("pyproject.toml", "rb") as project_file:
+              version = tomllib.load(project_file)["project"]["version"]
+
+          release_tag = f"v{version}"
+          if not re.fullmatch(r"v[0-9][0-9A-Za-z._-]*", release_tag):
+              raise SystemExit(
+                  f"Unsupported release tag {release_tag!r}. Use versions like "
+                  "1.2.3 or 1.2.3-rc.1 in pyproject.toml."
+              )
+
+          print(f"PROJECT_VERSION={version}")
+          print(f"RELEASE_TAG={release_tag}")
+          PY
+
+      - name: Stop if release tag already exists
+        run: |
+          git fetch --tags --force
+          if git rev-parse --quiet --verify "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            echo "Release tag ${RELEASE_TAG} already exists; nothing to prepare."
+            echo "TAG_EXISTS=true" >> "$GITHUB_ENV"
+          else
+            echo "TAG_EXISTS=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Update README release examples
+        if: env.TAG_EXISTS != 'true'
+        run: python scripts/update-readme-release-version.py "${RELEASE_TAG}"
+
+      - name: Refresh package metadata
+        if: env.TAG_EXISTS != 'true'
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Commit release documentation updates
+        if: env.TAG_EXISTS != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add README.md src/google_finance_mcp.egg-info/PKG-INFO src/google_finance_mcp.egg-info/SOURCES.txt
+          if git diff --cached --quiet; then
+            echo "Release documentation already matches ${RELEASE_TAG}."
+          else
+            git commit -m "docs: update release download version to ${RELEASE_TAG}"
+          fi
+
+      - name: Create release tag
+        if: env.TAG_EXISTS != 'true'
+        run: git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
+
+      - name: Push branch and tag
+        if: env.TAG_EXISTS != 'true'
+        run: |
+          git push origin HEAD:${{ github.event.repository.default_branch }}
+          git push origin "${RELEASE_TAG}"
+
+      - name: Publish GitHub Release and start artifact build
+        if: env.TAG_EXISTS != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${RELEASE_TAG}" \
+            --title "${RELEASE_TAG}" \
+            --generate-notes
+          gh workflow run release.yml \
+            --ref "${{ github.event.repository.default_branch }}" \
+            -f release_tag="${RELEASE_TAG}"
