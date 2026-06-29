@@ -17,6 +17,7 @@ from google_finance_mcp.client import (
     parse_batchexecute_response,
     parse_mapping_from_html,
 )
+from google_finance_mcp.key_statistics import enrich_key_statistics_result
 from google_finance_mcp.rpc_metadata import metadata_for_dataset
 
 UTC = timezone.utc
@@ -210,6 +211,24 @@ def test_parse_batchexecute_response() -> None:
 """
 
     assert parse_batchexecute_response(raw) == [{"id": "xh8wxf", "data": [[["quote"]]]}]
+
+
+def test_enrich_key_statistics_result_labels_raw_vector() -> None:
+    result = {
+        "id": "gXxkFd",
+        "data": [None, None, [["UUUU", "NYSEAMERICAN"], 0.625, 0.3125, 0.0625, 56.25, 0.4832, 0.3921, 0.1247, 35.85, 4.5, 11, 1.6842105263157894]],
+    }
+
+    enriched = enrich_key_statistics_result(result)
+
+    assert enriched["data"] is result["data"]
+    labeled = enriched["labeled_data"]
+    assert labeled["confidence"] == "best_effort"
+    assert labeled["rows"][0]["symbol"] == "UUUU"
+    assert labeled["rows"][0]["exchange"] == "NYSEAMERICAN"
+    assert labeled["rows"][0]["values"]["primary_bucket_1_ratio"] == 0.625
+    assert labeled["rows"][0]["groups"]["primary_distribution"]["bucket_ratio_sum"] == 1.0
+    assert labeled["rows"][0]["raw_fields"][4]["raw_index"] == 4
 
 
 @pytest.mark.anyio

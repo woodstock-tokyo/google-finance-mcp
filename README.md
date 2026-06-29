@@ -381,7 +381,7 @@ can change.
 | `ds:10` | `c2u4wc` | Intraday OHLCV chart | `[[tuple],1,null,null,null,null,null,1]` | Intraday candle rows with open, close, high, low, timestamp, and volume. |
 | `ds:11` | `c2u4wc` | One-month chart points | `[[tuple],3]` | Daily price points. |
 | `ds:12` | `c2u4wc` | One-month OHLCV chart | `[[tuple],3,null,null,null,null,null,1]` | Daily candle rows with open, close, high, low, timestamp, and volume. |
-| `ds:13` | `gXxkFd` | Key statistics / ratios | `[["SYMBOL","EXCHANGE"]]` | Compact numeric ratio vector; individual field labels still need mapping. |
+| `ds:13` | `gXxkFd` | Key statistics / ratios | `[["SYMBOL","EXCHANGE"]]` | Compact numeric ratio vector. Responses include `labeled_data` with best-effort structural labels and preserved raw indices. |
 | `ds:14` | `gCvqoe` | Quote summary alternate | `[[tuple]]` | Quote payload without the trailing mode flag. |
 | `ds:15` | `dlNq8b` | Security overview card alternate | `[[tuple],1,1,1]` | Alternate price, market cap, industry, logo, and summary quote fields. |
 | `ds:16` | `Pr8h2e` | Financials / estimates | `[[tuple],null,1]` | Financial statement and estimate arrays. |

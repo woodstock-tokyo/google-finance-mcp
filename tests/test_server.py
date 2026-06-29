@@ -51,6 +51,32 @@ class FakeClient:
         return {"dataset_key": dataset_key, "request_override": request_override}
 
 
+class QuoteFakeClient(FakeClient):
+    async def get_mapping(self, *, page_path: str = "/finance/beta", force_refresh: bool = False) -> ApiMapping:
+        request = [["NVDA", "NASDAQ"]]
+        return ApiMapping(
+            source_url="https://www.google.com/finance/beta/quote/NVDA:NASDAQ",
+            source_path="/finance/beta/quote/NVDA:NASDAQ",
+            batchexecute_url="https://www.google.com/finance/beta/_/FinHubUi/data/batchexecute",
+            init_data_keys=["ds:13"],
+            requests={
+                "ds:13": DataServiceRequest(
+                    key="ds:13",
+                    rpc_id="gXxkFd",
+                    request=request,
+                    metadata=metadata_for_dataset("ds:13", "gXxkFd", request, source_path="/finance/beta/quote/NVDA:NASDAQ"),
+                )
+            },
+            cache_policy=CachePolicy(
+                cache_control="max-age=60",
+                expires=None,
+                date=None,
+                fetched_at=datetime(2026, 5, 26, tzinfo=UTC),
+                expires_at=datetime(2026, 5, 26, 0, 1, tzinfo=UTC),
+            ),
+        )
+
+
 @pytest.mark.anyio
 async def test_dynamic_tool_uses_rpc_purpose(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(server, "client", FakeClient())
@@ -73,6 +99,16 @@ async def test_dynamic_purpose_tool_calls_dataset(monkeypatch: pytest.MonkeyPatc
     result = await _call_tool("google_finance_ds_8_market_movers", {})
 
     assert result == {"dataset_key": "ds:8", "request_override": None}
+
+
+@pytest.mark.anyio
+async def test_key_statistics_dynamic_tool_description_mentions_best_effort_labels(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server, "client", QuoteFakeClient())
+
+    tools = await _list_tools()
+    tool = next(tool for tool in tools if tool.name == "google_finance_ds_13_key_statistics_ratios")
+
+    assert "best-effort structural labels" in str(tool.description)
 
 
 @pytest.mark.anyio

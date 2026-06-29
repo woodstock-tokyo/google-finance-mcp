@@ -12,6 +12,7 @@ from urllib.parse import urlencode, urlsplit
 import anyio
 import httpx
 
+from .key_statistics import enrich_key_statistics_result
 from .rpc_metadata import EndpointMetadata, metadata_for_dataset
 
 JSONValue = Any
@@ -403,7 +404,10 @@ class GoogleFinanceClient:
             raise MappingParseError(
                 f"Google Finance returned no batchexecute frame for {dataset_key} on {mapping.source_path}"
             )
-        return results[0]
+        result = results[0]
+        if dataset_key == "ds:13":
+            return enrich_key_statistics_result(result)
+        return result
 
     async def call_rpc(
         self,

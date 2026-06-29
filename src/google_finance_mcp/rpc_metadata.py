@@ -123,7 +123,7 @@ QUOTE_PAGE_DATASET_PURPOSES: dict[str, tuple[str, str, str]] = {
     "ds:13": (
         "Key statistics / ratios",
         '[["SYMBOL", "EXCHANGE"]]',
-        "Compact numeric ratio vector; individual field labels still need mapping.",
+        "Compact numeric ratio vector. Responses are enriched with best-effort structural labels while preserving raw indices.",
     ),
     "ds:14": ("Quote summary alternate", "[[tuple]]", "Quote payload without the trailing mode flag."),
     "ds:15": (
@@ -191,7 +191,7 @@ QUOTE_RPC_PURPOSES: dict[str, list[tuple[str, str, str]]] = {
         (
             "Key statistics / ratios",
             '[["SYMBOL", "EXCHANGE"]]',
-            "Compact numeric ratio vector; individual field labels still need mapping.",
+            "Compact numeric ratio vector. Responses are enriched with best-effort structural labels while preserving raw indices.",
         )
     ],
     "Pr8h2e": [("Financials / estimates", "[[tuple], null, 1]", "Financial statement and estimate arrays.")],
