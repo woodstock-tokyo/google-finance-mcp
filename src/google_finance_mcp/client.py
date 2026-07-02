@@ -13,6 +13,7 @@ import anyio
 import httpx
 
 from .key_statistics import enrich_key_statistics_result
+from .quote_holdings import QUOTE_HOLDINGS_RPC_ID, enrich_quote_holdings_result, quote_holdings_request
 from .rpc_metadata import EndpointMetadata, metadata_for_dataset
 
 JSONValue = Any
@@ -428,6 +429,27 @@ class GoogleFinanceClient:
                 gl=gl,
             )
         )[0]
+
+    async def call_quote_holdings(
+        self,
+        symbol: str,
+        exchange: str,
+        request_override: JSONValue | None = None,
+        *,
+        beta: bool = True,
+        hl: str = "en",
+        gl: str = "us",
+    ) -> dict[str, JSONValue]:
+        source_path = f"/finance/{'beta/' if beta else ''}quote/{symbol.upper()}:{exchange.upper()}"
+        result = await self.call_rpc(
+            QUOTE_HOLDINGS_RPC_ID,
+            quote_holdings_request(symbol, exchange) if request_override is None else request_override,
+            source_path=source_path,
+            batchexecute_url=FINHUB_BATCHEXECUTE_URL,
+            hl=hl,
+            gl=gl,
+        )
+        return enrich_quote_holdings_result(result)
 
     async def batch_call(
         self,

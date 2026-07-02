@@ -180,6 +180,23 @@ GENERIC_TOOLS = [
         ),
     ),
     Tool(
+        name="google_finance_get_quote_holdings",
+        description=(
+            "Call the Google Finance quote Holdings tab RPC for a ticker and exchange. "
+            "Returns raw data plus best-effort labels for politician holdings, politician transactions, "
+            "insider transactions, and pagination cursors. This RPC is not advertised in AF_dataServiceRequests."
+        ),
+        inputSchema=_schema(
+            {
+                **QUOTE_FIELDS,
+                "request_override": ANY_JSON_SCHEMA,
+                "hl": {"type": "string", "default": "en"},
+                "gl": {"type": "string", "default": "us"},
+            },
+            required=["symbol", "exchange"],
+        ),
+    ),
+    Tool(
         name="google_finance_call_rpc",
         description="Call a Google Finance RPC ID with an explicit JSON request payload.",
         inputSchema=_schema(
@@ -334,6 +351,16 @@ async def call_tool(name: str, arguments: dict[str, JSONValue]) -> dict[str, JSO
                 beta=bool(arguments.get("beta", True)),
             ),
             source_path=_optional_str(arguments.get("source_path")),
+            hl=str(arguments.get("hl", "en")),
+            gl=str(arguments.get("gl", "us")),
+        )
+
+    if name == "google_finance_get_quote_holdings":
+        return await client.call_quote_holdings(
+            str(arguments["symbol"]),
+            str(arguments["exchange"]),
+            arguments.get("request_override"),
+            beta=bool(arguments.get("beta", True)),
             hl=str(arguments.get("hl", "en")),
             gl=str(arguments.get("gl", "us")),
         )

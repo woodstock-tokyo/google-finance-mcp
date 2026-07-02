@@ -10,7 +10,9 @@ lawyer.
 
 This project is intended for local, personal, manually configured,
 user-initiated use. It is an unofficial execution layer for endpoints that are
-advertised inside Google Finance web pages loaded by the user.
+advertised inside Google Finance web pages loaded by the user, or invoked by
+those loaded pages during the user's manual interaction with visible Google
+Finance UI features.
 
 Do not use or contribute to this project as a hosted market-data API, shared
 proxy, crawler, scheduled data puller, data warehouse, data redistribution
@@ -56,6 +58,8 @@ Acceptable use is narrow:
 - manually configuring it in an MCP client;
 - making user-initiated queries for personal experimentation or research;
 - inspecting mappings advertised by the Google Finance page currently fetched;
+- calling documented, user-visible page features that are invoked by the loaded
+  page during the user's manual interaction with Google Finance;
 - using returned data transiently for the user's local request.
 
 This repository does not grant any license to Google Finance, Google services,
@@ -100,6 +104,8 @@ Contributions should make the local execution layer safer, clearer, and more
 transparent. Good contributions include:
 
 - parser fixes for mappings advertised in fetched pages;
+- narrowly scoped helpers for user-visible page features when their render-time
+  requests are documented, low-volume, user-initiated, and clearly caveated;
 - defensive error handling and fail-closed behavior;
 - cache-header respecting behavior;
 - documentation that clarifies limits, setup, or compliance;

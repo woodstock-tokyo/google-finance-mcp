@@ -18,6 +18,7 @@ from google_finance_mcp.client import (
     parse_mapping_from_html,
 )
 from google_finance_mcp.key_statistics import enrich_key_statistics_result
+from google_finance_mcp.quote_holdings import enrich_quote_holdings_result, quote_holdings_request
 from google_finance_mcp.rpc_metadata import metadata_for_dataset
 
 UTC = timezone.utc
@@ -231,6 +232,93 @@ def test_enrich_key_statistics_result_labels_raw_vector() -> None:
     assert labeled["rows"][0]["raw_fields"][4]["raw_index"] == 4
 
 
+def test_quote_holdings_request_uses_holdings_tab_shape() -> None:
+    assert quote_holdings_request("tsla", "nasdaq") == [[None, ["TSLA", "NASDAQ"]]]
+
+
+def test_enrich_quote_holdings_result_labels_observed_slots() -> None:
+    result = {
+        "id": "K5Y6Xb",
+        "data": [
+            [
+                [
+                    "08d939a4-f63b-4a4b-b431-7096644081bb",
+                    "spouse",
+                    "TSLA",
+                    "stock",
+                    "TSLA",
+                    2024,
+                    "40",
+                    "5",
+                    "76",
+                    "Ro Khanna",
+                    True,
+                    "ro",
+                    "khanna",
+                    "male",
+                    "House",
+                    "democrat",
+                    "CA-17",
+                ]
+            ],
+            [
+                [
+                    "739eca36-a8f3-4894-96b1-420354fe17b6",
+                    "2026-03-13",
+                    "TSLA",
+                    "Sell",
+                    "$15,001 - $50,000",
+                    "2026-04-08",
+                    "Hon. Gilbert Cisneros",
+                    "Gilbert Cisneros",
+                    "House",
+                    "democrat",
+                    "CA-31",
+                    "undisclosed",
+                ]
+            ],
+            None,
+            None,
+            [
+                [
+                    ["TSLA", "NASDAQ"],
+                    0,
+                    "Elon Musk",
+                    "aef9cb66681469593c871ed3b677e62cfdcbb453",
+                    "CEO, Director, Ten Percent Owner",
+                    "51652_JIDHFHAGI_tsqr.jpg",
+                    "4.9",
+                    "Uninformative buy",
+                    "NB",
+                    [2026, 6, 17],
+                    6685247561.82,
+                    286428773,
+                    "USD",
+                    "http://sec.gov/example.xml",
+                ]
+            ],
+            None,
+            "politician-holdings-cursor",
+            "politician-transactions-cursor",
+            "insiders-cursor",
+        ],
+    }
+
+    enriched = enrich_quote_holdings_result(result)
+
+    assert enriched["data"] is result["data"]
+    labeled = enriched["labeled_data"]
+    assert labeled["politician_holdings"][0]["values"]["display_name"] == "Ro Khanna"
+    assert labeled["politician_transactions"][0]["values"]["transaction_type"] == "Sell"
+    insider = labeled["insider_transactions"][0]
+    assert insider["symbol"] == "TSLA"
+    assert insider["exchange"] == "NASDAQ"
+    assert insider["transaction_date"] == "2026-06-17"
+    assert insider["insider_name"] == "Elon Musk"
+    assert insider["amount"] == 6685247561.82
+    assert labeled["pagination"]["insider_transactions_cursor"] == "insiders-cursor"
+
+
 @pytest.mark.anyio
 async def test_call_dataset_refreshes_mapping_when_cached_rpc_returns_no_frame() -> None:
     def mapping_for(rpc_id: str) -> ApiMapping:
@@ -277,3 +365,25 @@ async def test_call_dataset_refreshes_mapping_when_cached_rpc_returns_no_frame()
 
     assert result == {"id": "newRpc", "data": [["ok"]]}
     assert client.rpc_ids == ["oldRpc", "newRpc"]
+
+
+@pytest.mark.anyio
+async def test_call_quote_holdings_uses_finhub_rpc_and_enriches_result() -> None:
+    class HoldingsClient(GoogleFinanceClient):
+        def __init__(self) -> None:
+            self.calls: list[dict[str, object]] = []
+
+        async def call_rpc(self, rpc_id: str, request, **kwargs):
+            self.calls.append({"rpc_id": rpc_id, "request": request, "kwargs": kwargs})
+            return {"id": rpc_id, "data": [[], [], None, None, [], None, None, None, None]}
+
+    client = HoldingsClient()
+
+    result = await client.call_quote_holdings("tsla", "nasdaq")
+
+    assert result["id"] == "K5Y6Xb"
+    assert result["labeled_data"]["schema_version"] == "google_finance_quote_holdings.v1"
+    assert client.calls[0]["rpc_id"] == "K5Y6Xb"
+    assert client.calls[0]["request"] == [[None, ["TSLA", "NASDAQ"]]]
+    assert client.calls[0]["kwargs"]["source_path"] == "/finance/beta/quote/TSLA:NASDAQ"
+    assert client.calls[0]["kwargs"]["batchexecute_url"] == FINHUB_BATCHEXECUTE_URL

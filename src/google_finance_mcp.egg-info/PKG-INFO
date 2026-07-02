@@ -25,8 +25,10 @@ contributing to, packaging, publishing, or deploying this project.
 
 Intended use is local, personal, manually configured, and user-initiated. This
 wrapper behaves as an execution layer for endpoints advertised in the Google
-Finance web page; it is not intended to run as a hosted API, shared proxy,
-crawler, scheduled data puller, data store, or redistribution service.
+Finance web page, plus narrowly documented render-time requests made by visible
+page features during manual interaction; it is not intended to run as a hosted
+API, shared proxy, crawler, scheduled data puller, data store, or redistribution
+service.
 
 ## Quick install for Mac users
 
@@ -268,6 +270,10 @@ The workflow uploads:
   `/finance/beta/quote/...`.
 - `google_finance_call_quote_dataset`: call any advertised quote-page `ds:*`
   dataset for a ticker and exchange.
+- `google_finance_get_quote_holdings`: call the quote Holdings tab RPC for a
+  ticker and exchange. This RPC is not advertised in `AF_dataServiceRequests`; it
+  returns raw data plus best-effort labels for politician holdings, politician
+  transactions, insider transactions, and pagination cursors.
 - `google_finance_call_rpc`: call a single RPC ID with an explicit request.
   Explicit RPC calls default to the classic `GoogleFinanceUi` endpoint and can
   opt into `endpoint_family: "finhub"`.
@@ -404,6 +410,23 @@ can change.
 | `ds:18` | `kA4MVd` | Security news feed | `[5,12,[tuple]]` | Company/security-specific article list. |
 | `ds:19` | `RiQiSd` | Empty initialization endpoint | `[null,null,25]` | Initialization request that returns an empty data array. |
 | `ds:20` | `X12h2b` | Empty initialization endpoint | `[]` | Initialization request that returns an empty data array. |
+
+### Quote Holdings tab RPC
+
+The quote page's Holdings tab is not present in the `AF_dataServiceRequests`
+`ds:*` mapping. It is loaded by a render-time FinHub RPC observed from the live
+page network traffic on 2026-07-02:
+
+| RPC id | Tool | Default request shape | Notes |
+| --- | --- | --- | --- |
+| `K5Y6Xb` | `google_finance_get_quote_holdings` | `[[null,["SYMBOL","EXCHANGE"]]]` | Returns politician holdings, politician transactions, insider transactions, and pagination cursors. |
+
+Because this method token is not advertised as a page dataset, treat it as more
+volatile than `ds:N` calls. The tool preserves the raw batchexecute payload and
+adds `labeled_data` with best-effort structural labels inferred from the rendered
+Holdings tab and observed response rows. Insider transaction rows include fields
+such as `insider_name`, `position`, `transaction_type`, `transaction_date`,
+`shares`, `amount`, `currency`, and `sec_form4_url`.
 
 ### Endpoint handling
 

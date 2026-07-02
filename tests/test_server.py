@@ -156,3 +156,28 @@ async def test_call_rpc_can_use_finhub_endpoint(monkeypatch: pytest.MonkeyPatch)
     )
 
     assert result["kwargs"]["batchexecute_url"].endswith("/finance/beta/_/FinHubUi/data/batchexecute")
+
+
+@pytest.mark.anyio
+async def test_quote_holdings_tool_uses_quote_holdings_client_method(monkeypatch: pytest.MonkeyPatch) -> None:
+    class RecordingClient:
+        async def call_quote_holdings(self, symbol: str, exchange: str, request_override=None, **kwargs):
+            return {"symbol": symbol, "exchange": exchange, "request_override": request_override, "kwargs": kwargs}
+
+    monkeypatch.setattr(server, "client", RecordingClient())
+
+    result = await _call_tool("google_finance_get_quote_holdings", {"symbol": "tsla", "exchange": "nasdaq"})
+
+    assert result["symbol"] == "tsla"
+    assert result["exchange"] == "nasdaq"
+    assert result["request_override"] is None
+    assert result["kwargs"] == {"beta": True, "hl": "en", "gl": "us"}
+
+
+@pytest.mark.anyio
+async def test_quote_holdings_tool_is_listed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server, "client", FakeClient())
+
+    tools = await _list_tools()
+
+    assert "google_finance_get_quote_holdings" in [tool.name for tool in tools]
