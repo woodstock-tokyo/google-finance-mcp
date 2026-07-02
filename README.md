@@ -28,7 +28,7 @@ you use an Intel Mac, skip to [Python install from source](#python-install-from-
 Open **Terminal**, paste these commands, and press Enter:
 
 ```bash
-VERSION=v0.1.1
+VERSION=v0.1.2
 curl -L -o google-finance-mcp-macos-arm64.pkg \
   "https://github.com/woodstock-tokyo/google-finance-mcp/releases/download/${VERSION}/google-finance-mcp-${VERSION}-macos-arm64.pkg"
 sudo installer -pkg google-finance-mcp-macos-arm64.pkg -target /
@@ -93,7 +93,7 @@ Download the Linux `.tar.gz`, extract it, and place the binary somewhere stable,
 for example `/usr/local/bin`:
 
 ```bash
-tar -xzf google-finance-mcp-v0.1.1-linux-x86_64.tar.gz
+tar -xzf google-finance-mcp-v0.1.2-linux-x86_64.tar.gz
 sudo install -m 755 google-finance-mcp /usr/local/bin/google-finance-mcp
 ```
 
@@ -219,16 +219,26 @@ verifies its installer `Bom` before publishing the `.pkg` artifact. This avoids 
 paid Apple Developer ID dependency, but it does not bypass Gatekeeper's trust
 checks for downloaded installers.
 
-Release preparation starts from the version in `pyproject.toml`. When that file
-changes on `master`, `.github/workflows/prepare-release.yml` updates the README
-download examples, refreshes package metadata, creates tag `v<version>`, and
-publishes the GitHub Release for that tag.
+Release preparation starts from the version in `pyproject.toml`. In the release
+pull request, update the README download examples and refresh package metadata:
+
+```bash
+python scripts/update-readme-release-version.py v<version>
+python -m build
+```
+
+When the release pull request lands on `master`,
+`.github/workflows/prepare-release.yml` verifies those generated files are
+already committed, creates tag `v<version>`, and publishes the GitHub Release for
+that tag. The workflow does not push generated commits back to `master`, so it
+works with branch protection rules that require changes to go through pull
+requests.
 
 GitHub release assets are then built by `.github/workflows/release.yml` for that
 release tag. The prepare workflow dispatches the asset builder after publishing
 the Release, and the builder uploads the generated files to that Release, so
 direct download URLs such as
-`https://github.com/woodstock-tokyo/google-finance-mcp/releases/download/v0.1.1/google-finance-mcp-v0.1.1-macos-arm64.pkg`
+`https://github.com/woodstock-tokyo/google-finance-mcp/releases/download/v0.1.2/google-finance-mcp-v0.1.2-macos-arm64.pkg`
 work with `curl`.
 
 The workflow uploads:

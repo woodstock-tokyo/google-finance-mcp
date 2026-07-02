@@ -73,28 +73,24 @@ jobs:
           python -m pip install --upgrade pip build
           python -m build
 
-      - name: Commit release documentation updates
+      - name: Verify release documentation updates are committed
         if: env.TAG_EXISTS != 'true'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add README.md src/google_finance_mcp.egg-info/PKG-INFO src/google_finance_mcp.egg-info/SOURCES.txt
-          if git diff --cached --quiet; then
+          if git diff --quiet -- README.md src/google_finance_mcp.egg-info/PKG-INFO src/google_finance_mcp.egg-info/SOURCES.txt; then
             echo "Release documentation already matches ${RELEASE_TAG}."
           else
-            git commit -m "docs: update release download version to ${RELEASE_TAG}"
+            echo "::error::Release documentation or package metadata is stale for ${RELEASE_TAG}. Run python scripts/update-readme-release-version.py ${RELEASE_TAG} and python -m build, then commit README.md and src/google_finance_mcp.egg-info through a pull request."
+            git diff -- README.md src/google_finance_mcp.egg-info/PKG-INFO src/google_finance_mcp.egg-info/SOURCES.txt
+            exit 1
           fi
 
       - name: Create release tag
         if: env.TAG_EXISTS != 'true'
         run: git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
 
-      - name: Push branch and tag
+      - name: Push release tag
         if: env.TAG_EXISTS != 'true'
-        run: |
-          git push origin HEAD:${{ github.event.repository.default_branch }}
-          git push origin "${RELEASE_TAG}"
+        run: git push origin "${RELEASE_TAG}"
 
       - name: Publish GitHub Release and start artifact build
         if: env.TAG_EXISTS != 'true'

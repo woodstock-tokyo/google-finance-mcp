@@ -40,18 +40,16 @@ jobs:
           python -m pip install --upgrade pip build
           python -m build
 
-      - name: Commit README release version
+      - name: Verify README release version is committed
         run: |
           if git diff --quiet -- README.md src/google_finance_mcp.egg-info/PKG-INFO src/google_finance_mcp.egg-info/SOURCES.txt; then
             echo "README release examples already match ${RELEASE_VERSION}."
             exit 0
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md src/google_finance_mcp.egg-info/PKG-INFO src/google_finance_mcp.egg-info/SOURCES.txt
-          git commit -m "docs: update release download version to ${RELEASE_VERSION}"
-          git push origin HEAD:${{ github.event.repository.default_branch }}
+          echo "::error::README release examples or package metadata are stale for ${RELEASE_VERSION}. Commit the generated updates through a pull request before publishing release assets."
+          git diff -- README.md src/google_finance_mcp.egg-info/PKG-INFO src/google_finance_mcp.egg-info/SOURCES.txt
+          exit 1
 
   macos:
     name: Build macOS arm64 installer
