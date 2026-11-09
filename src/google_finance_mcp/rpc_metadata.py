@@ -247,9 +247,15 @@ QUOTE_RPC_PURPOSES: dict[str, list[tuple[str, str, str]]] = {
     ],
     "JL8oKc": [("Company profile", "[[tuple]]", "Long company/security profile and descriptive fields.")],
     "SICF5d": [("Related securities", "[tuple, 4]", "Peer and related quote cards for comparison.")],
-    "YTM9q": [
+    "lXoEXd": [
         ("Analyst ratings and price targets", "[tuple]", "Analyst consensus, price target range, and recent analyst actions.")
     ],
+    "YTM9q": [
+        ("Analyst ratings and price targets", "[tuple]", "Analyst consensus and price targets; report-observed method alias.")
+    ],
+    "mysBRb": [("Featured stocks", "[]", "Featured securities, when advertised by the current page.")],
+    "JFUMjd": [("Earnings calendar", "[]", "Earnings calendar, when advertised by the current page.")],
+    "sy8gqe": [("Category news", "[category, offset]", "News for the page-advertised category and offset.")],
     "Kcy68c": [
         ("Earnings history and estimates", "[[tuple], 1]", "Quarterly rows with actual and estimated revenue/EPS fields.")
     ],
@@ -290,6 +296,12 @@ QUOTE_RPC_PURPOSES: dict[str, list[tuple[str, str, str]]] = {
             "[[tuple], 3, null, null, null, null, null, 1]",
             "Daily candle rows with open, close, high, low, timestamp, and volume.",
         ),
+        ("Chart points", "[[tuple], mode]", "Price points for a page-advertised numeric range mode."),
+        (
+            "OHLCV chart",
+            "[[tuple], mode, null, null, null, null, null, 1]",
+            "Candle rows for a page-advertised numeric range mode.",
+        ),
     ],
     "gXxkFd": [
         (
@@ -301,9 +313,12 @@ QUOTE_RPC_PURPOSES: dict[str, list[tuple[str, str, str]]] = {
     "Pr8h2e": [("Financials / estimates", "[[tuple], null, 1]", "Financial statement and estimate arrays.")],
     "kA4MVd": [
         ("Market news feed", "[2, 12, [tuple]]", "General market or related news list."),
+        ("Security news feed", "[5, 12, [tuple]]", "Company/security-specific article list."),
+        ("Security news feed", "[5, 24, [tuple]]", "Company/security-specific article list (24 articles)."),
     ],
     "wdVNWe": [
         ("Security news feed", "[5, 12, [tuple]]", "Company/security-specific article list."),
+        ("Security news feed", "[5, 24, [tuple]]", "Company/security-specific article list (24 articles)."),
     ],
     "wKsYyb": [
         (
@@ -365,6 +380,7 @@ def metadata_for_dataset(
         )
 
     candidates = [
+        *_rpc_candidates(dataset_key, current_rpc_id, request),
         *_dataset_hint_candidates(
             dataset_key,
             current_rpc_id,
@@ -513,6 +529,14 @@ def _request_shape(request: JSONValue) -> str:
 
 def _request_matches_shape(request: JSONValue, request_shape: str) -> bool:
     normalized = re.sub(r"\s+", "", request_shape)
+    if normalized == "[[tuple],mode]":
+        return _is_chart_request(request)
+    if normalized == "[[tuple],mode,null,null,null,null,null,1]":
+        return (isinstance(request, list) and len(request) == 8 and type(request[1]) is int
+                and _is_ohlcv_chart_request(request, mode=request[1]))
+    if normalized == "[category,offset]":
+        return (isinstance(request, list) and len(request) == 2
+                and type(request[0]) is int and type(request[1]) is int)
     if normalized == "[1]":
         return request == [1]
     if normalized == "[0]":
@@ -582,6 +606,8 @@ def _request_matches_shape(request: JSONValue, request_shape: str) -> bool:
         return _is_news_request(request) and request[0] == 2 and request[1] == 12
     if normalized == "[5,12,[tuple]]":
         return _is_news_request(request) and request[0] == 5 and request[1] == 12
+    if normalized == "[5,24,[tuple]]":
+        return _is_news_request(request) and len(request) == 3 and request[0] == 5 and request[1] == 24
     return False
 
 

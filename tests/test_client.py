@@ -153,7 +153,7 @@ def test_quote_page_mapping_matches_current_dataset_keys() -> None:
     'ds:4' : {id:'JL8oKc',request:[[[null,["TSLA","NASDAQ"]]]]},
     'ds:5' : {id:'smi6ye',request:[["TSLA","NASDAQ"]]},
     'ds:6' : {id:'SICF5d',request:[[null,["TSLA","NASDAQ"]],4]},
-    'ds:7' : {id:'YTM9q',request:[[null,["TSLA","NASDAQ"]]]},
+    'ds:7' : {id:'lXoEXd',request:[[null,["TSLA","NASDAQ"]]]},
     'ds:8' : {id:'Kcy68c',request:[[[null,["TSLA","NASDAQ"]]],1]},
     'ds:9' : {id:'XxQsbd',request:[[[null,["TSLA","NASDAQ"]]],1]},
     'ds:10' : {id:'ADgT7b',request:[[[null,["TSLA","NASDAQ"]]],1,1,1]},
@@ -182,6 +182,7 @@ def test_quote_page_mapping_matches_current_dataset_keys() -> None:
     assert mapping.requests["ds:6"].metadata.purpose == "Related securities"
     assert mapping.requests["ds:6"].metadata.request_shape == "[tuple, 4]"
     assert mapping.requests["ds:7"].metadata.purpose == "Analyst ratings and price targets"
+    assert mapping.requests["ds:7"].metadata.source == "runtime-compiled-rpc-id"
     assert mapping.requests["ds:8"].metadata.purpose == "Earnings history and estimates"
     assert mapping.requests["ds:9"].metadata.purpose == "Earnings history and estimates alternate"
     assert mapping.requests["ds:10"].metadata.purpose == "Security overview card"

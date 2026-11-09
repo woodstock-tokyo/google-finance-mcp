@@ -277,6 +277,66 @@ The workflow uploads:
   refreshed. Classic and quote-page endpoints are not exposed as generated
   tools; use the page/quote dataset tools or explicit RPC tools for those.
 
+### Named quote-page and discovery tools
+
+The following tools accept `symbol`, `exchange`, optional `beta` (default `true`),
+`hl`, `gl`, and `request_override`. They resolve the feature from the security's
+live page mapping rather than assuming the same `ds:*` positions as the home page:
+
+| Tool | Feature |
+| --- | --- |
+| `google_finance_quote_summary` | Main quote payload |
+| `google_finance_company_profile` | Company/security profile |
+| `google_finance_key_statistics` | Market statistics and ratios |
+| `google_finance_related_securities` | Related securities |
+| `google_finance_analyst_ratings` | Analyst ratings and price targets |
+| `google_finance_earnings_history_alts` | Alternate earnings history/estimates |
+| `google_finance_security_overview_alt` | Alternate security overview |
+| `google_finance_security_news_feed` | Company/security news |
+| `google_finance_financials` | Financial statements and estimates |
+
+Results retain the raw RPC `id` and `data`. The existing provenance-gated,
+best-effort financial/statistics labels remain available when applicable; these
+tools do not promise a normalized schema for every response.
+
+Chart tools are `google_finance_1d_chart`, `google_finance_5d_chart`,
+`google_finance_1m_chart`, `google_finance_6m_chart`, `google_finance_1y_chart`,
+`google_finance_5y_chart`, and `google_finance_max_chart`. They take the same quote
+arguments plus `kind: "points"` (default) or `"ohlcv"`.
+`google_finance_intraday_chart` defaults to OHLCV and accepts `interval: "1d"`.
+These select advertised range modes; they do not synthesize missing requests,
+resample candles, or guarantee all ranges are available for every security.
+
+Additional tools:
+
+- `google_finance_detect_quote_rpcs_for_symbol`: takes `symbol`, `exchange`, and
+  optional `beta`; returns the full mapping, resolved endpoints (or `null` when
+  unavailable), and advertised chart requests.
+- `google_finance_enumerate_chart_intervals`: takes the same discovery arguments;
+  returns chart dataset keys, RPC IDs, modes, range names, kinds, and payloads.
+  Unrecognized modes retain their numeric value and have a `null` range name.
+- `google_finance_earnings_calendar`, `google_finance_featured_stocks`,
+  `google_finance_market_news_feed`, and `google_finance_category_news`: resolve
+  the corresponding advertised purpose from `page_path` (default `/finance/beta`).
+  Optional `request_override`, `hl`, and `gl` work as above. For another category
+  or offset, inspect the live request before overriding it.
+- `google_finance_test_rpc`: takes `rpc_id`, `request`, and the same transport
+  options as `google_finance_call_rpc`. Returns `frame_received` and matching
+  `results`; a null/empty data payload still counts as a received frame. HTTP and
+  parsing errors propagate normally. Use `endpoint_family: "finhub"` and a quote
+  `source_path` when diagnosing a beta quote RPC.
+
+For example, call `google_finance_company_profile` with
+`{"symbol":"AAPL","exchange":"NASDAQ"}`, or discover candle availability with
+`google_finance_enumerate_chart_intervals` using the same arguments.
+
+If a named feature is absent, the server refreshes the page mapping once, then
+raises an explicit unavailable-dataset error. There is no guessed fallback to
+report-only RPC IDs or fixed dataset numbers. In particular, `stRW5d` with `[]`
+is recorded in this repository as an empty initialization endpoint, not assumed
+to be an earnings calendar or featured-stock feed. Featured/category tools work
+only on pages that actually advertise a recognized matching request.
+
 ## MCP client configuration reference
 
 For a local editable install, point your MCP client at the virtualenv console
@@ -389,7 +449,7 @@ did not confirm any new positional field labels.
 | `ds:4` | `JL8oKc` | Company profile | `[[tuple]]` | Long company/security profile and descriptive fields. |
 | `ds:5` | `smi6ye` | Market statistics | `[["SYMBOL","EXCHANGE"]]` | 52-week high, 52-week low, beta, and related compact market-statistics values. |
 | `ds:6` | `SICF5d` | Related securities | `[tuple,4]` | Peer/related quote cards for comparison. |
-| `ds:7` | `YTM9q` | Analyst ratings and price targets | `[tuple]` | Analyst consensus, price target range, and recent analyst actions. |
+| `ds:7` | `lXoEXd` | Analyst ratings and price targets | `[tuple]` | Analyst consensus, price target range, and recent analyst actions. |
 | `ds:8` | `Kcy68c` | Earnings history and estimates | `[[tuple],1]` | Quarterly rows with actual and estimated revenue/EPS fields. |
 | `ds:9` | `XxQsbd` | Earnings history and estimates alternate | `[[tuple],1]` | Alternate quarterly rows with actual and estimated revenue/EPS fields. |
 | `ds:10` | `ADgT7b` | Security overview card | `[[tuple],1,1,1]` | Price, market cap, industry, logo, and summary quote fields. |

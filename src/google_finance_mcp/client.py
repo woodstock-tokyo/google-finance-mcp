@@ -450,15 +450,17 @@ class GoogleFinanceClient:
         hl: str = "en",
         gl: str = "us",
     ) -> dict[str, JSONValue]:
-        return (
-            await self.batch_call(
-                [{"id": rpc_id, "request": request}],
-                source_path=source_path,
-                batchexecute_url=batchexecute_url,
-                hl=hl,
-                gl=gl,
-            )
-        )[0]
+        results = await self.batch_call(
+            [{"id": rpc_id, "request": request}],
+            source_path=source_path,
+            batchexecute_url=batchexecute_url,
+            hl=hl,
+            gl=gl,
+        )
+        for result in results:
+            if result["id"] == rpc_id:
+                return result
+        raise MappingParseError(f"Google Finance returned no batchexecute frame for RPC {rpc_id} on {source_path}")
 
     async def call_quote_holdings(
         self,

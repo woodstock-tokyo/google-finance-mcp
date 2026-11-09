@@ -79,7 +79,7 @@ did not confirm any new positional field labels.
 | `ds:4` | `JL8oKc` | Company profile | `[[tuple]]` | Long company/security profile and descriptive fields. |
 | `ds:5` | `smi6ye` | Market statistics | `[["SYMBOL","EXCHANGE"]]` | Compact market-statistics values. |
 | `ds:6` | `SICF5d` | Related securities | `[tuple,4]` | Peer/related quote cards for comparison. |
-| `ds:7` | `YTM9q` | Analyst ratings and price targets | `[tuple]` | Analyst consensus, price target range, and recent analyst actions. |
+| `ds:7` | `lXoEXd` | Analyst ratings and price targets | `[tuple]` | Analyst consensus, price target range, and recent analyst actions. |
 | `ds:8` | `Kcy68c` | Earnings history and estimates | `[[tuple],1]` | Quarterly rows with actual and estimated revenue/EPS fields. |
 | `ds:9` | `XxQsbd` | Earnings history and estimates alternate | `[[tuple],1]` | Alternate quarterly rows with actual and estimated revenue/EPS fields. |
 | `ds:10` | `ADgT7b` | Security overview card | `[[tuple],1,1,1]` | Price, market cap, industry, logo, and summary quote fields. |

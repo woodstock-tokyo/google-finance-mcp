@@ -9,7 +9,21 @@ from mcp.server import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool
 
-from .client import CLASSIC_BATCHEXECUTE_URL, DEFAULT_SOURCE_PATH, FINHUB_BATCHEXECUTE_URL, GoogleFinanceClient
+from .client import (
+    CLASSIC_BATCHEXECUTE_URL,
+    DEFAULT_SOURCE_PATH,
+    FINHUB_BATCHEXECUTE_URL,
+    GoogleFinanceClient,
+)
+from .quote_page_rpcs import (
+    CHART_MODES,
+    HOME_ENDPOINTS,
+    QUOTE_ENDPOINTS,
+    call_page_endpoint,
+    chart_datasets,
+    detect_quote_rpcs_for_symbol,
+    quote_page_path,
+)
 from .rpc_metadata import ARTICLE_REFERENCE_RPC_PURPOSES, EndpointMetadata
 
 JSONValue = Any
@@ -233,9 +247,74 @@ GENERIC_TOOLS = [
 ]
 
 
-def quote_page_path(symbol: str, exchange: str, *, beta: bool = True) -> str:
-    prefix = "/finance/beta/quote" if beta else "/finance/quote"
-    return f"{prefix}/{symbol.upper()}:{exchange.upper()}"
+SEMANTIC_FIELDS = {
+    "request_override": ANY_JSON_SCHEMA,
+    "hl": {"type": "string", "default": "en"},
+    "gl": {"type": "string", "default": "us"},
+}
+
+QUOTE_PAGE_TOOLS = [
+    Tool(
+        name=f"google_finance_{endpoint}",
+        description=(
+            f"Fetch {purposes[0]} using the security's live quote-page mapping. "
+            "Preserves the page's RPC ID and request tuple; fails if not advertised. "
+            "Returns the raw RPC result, with existing best-effort labels where supported."
+        ),
+        inputSchema=_schema({**QUOTE_FIELDS, **SEMANTIC_FIELDS}, ["symbol", "exchange"]),
+    )
+    for endpoint, purposes in QUOTE_ENDPOINTS.items()
+]
+
+HOME_PAGE_TOOLS = [
+    Tool(
+        name=f"google_finance_{endpoint}",
+        description=f"Fetch {purposes[0]} from a live page mapping; fails if not advertised. No guessed RPC fallback.",
+        inputSchema=_schema({**PAGE_FIELD, **SEMANTIC_FIELDS}),
+    )
+    for endpoint, purposes in HOME_ENDPOINTS.items()
+]
+
+CHART_TOOLS = [
+    Tool(
+        name=f"google_finance_{interval}_chart",
+        description=f"Fetch advertised {interval} chart data for a security; unavailable ranges are not synthesized.",
+        inputSchema=_schema({
+            **QUOTE_FIELDS, **SEMANTIC_FIELDS,
+            "kind": {"type": "string", "enum": ["points", "ohlcv"], "default": "points"},
+        }, ["symbol", "exchange"]),
+    )
+    for interval in CHART_MODES
+]
+
+QUOTE_PAGE_TOOLS.extend([
+    Tool(
+        name="google_finance_intraday_chart",
+        description="Fetch advertised intraday price points or OHLCV candles. Does not resample or invent candle intervals.",
+        inputSchema=_schema({
+            **QUOTE_FIELDS, **SEMANTIC_FIELDS,
+            "interval": {"type": "string", "enum": ["1d"], "default": "1d"},
+            "kind": {"type": "string", "enum": ["points", "ohlcv"], "default": "ohlcv"},
+        }, ["symbol", "exchange"]),
+    ),
+    Tool(
+        name="google_finance_detect_quote_rpcs_for_symbol",
+        description="Discover live quote dataset keys, semantic endpoints and chart requests for this security. Missing endpoints are null.",
+        inputSchema=_schema(QUOTE_FIELDS, ["symbol", "exchange"]),
+    ),
+    Tool(
+        name="google_finance_enumerate_chart_intervals",
+        description="List advertised chart modes, dataset keys, request payloads and points/OHLCV variants for a security.",
+        inputSchema=_schema(QUOTE_FIELDS, ["symbol", "exchange"]),
+    ),
+    Tool(
+        name="google_finance_test_rpc",
+        description="Diagnose an explicit RPC request. Reports missing frames separately from null/empty data; never guesses a fallback.",
+        inputSchema=_schema({
+            "rpc_id": {"type": "string"}, "request": ANY_JSON_SCHEMA, **GENERIC_RPC_FIELDS,
+        }, ["rpc_id", "request"]),
+    ),
+])
 
 
 def _optional_str(value: JSONValue) -> str | None:
@@ -288,11 +367,55 @@ async def list_tools() -> list[Tool]:
         _dynamic_tool(dataset_key, request.rpc_id, request.request, request.metadata)
         for dataset_key, request in sorted(mapping.requests.items())
     ]
-    return [*GENERIC_TOOLS, *dynamic_tools]
+    return [*GENERIC_TOOLS, *QUOTE_PAGE_TOOLS, *HOME_PAGE_TOOLS, *CHART_TOOLS, *dynamic_tools]
 
 
 @server.call_tool(validate_input=True)
 async def call_tool(name: str, arguments: dict[str, JSONValue]) -> dict[str, JSONValue]:
+    endpoint = name.removeprefix("google_finance_")
+    if endpoint in QUOTE_ENDPOINTS or endpoint in HOME_ENDPOINTS or name in {
+        tool.name for tool in CHART_TOOLS
+    } or endpoint == "intraday_chart":
+        is_home = endpoint in HOME_ENDPOINTS
+        page_path = str(arguments.get("page_path", DEFAULT_SOURCE_PATH)) if is_home else quote_page_path(
+            str(arguments["symbol"]), str(arguments["exchange"]), beta=bool(arguments.get("beta", True)),
+        )
+        interval = "1d"
+        kind = str(arguments.get("kind", "points"))
+        if endpoint == "intraday_chart":
+            endpoint = "chart"
+            interval = str(arguments.get("interval", "1d"))
+            kind = str(arguments.get("kind", "ohlcv"))
+        elif endpoint.endswith("_chart"):
+            interval = endpoint.removesuffix("_chart")
+            endpoint = "chart"
+        return await call_page_endpoint(
+            client, endpoint, page_path=page_path, request_override=arguments.get("request_override"),
+            interval=interval, kind=kind, hl=str(arguments.get("hl", "en")), gl=str(arguments.get("gl", "us")),
+        )
+
+    if name == "google_finance_detect_quote_rpcs_for_symbol":
+        return await detect_quote_rpcs_for_symbol(
+            client, str(arguments["symbol"]), str(arguments["exchange"]), beta=bool(arguments.get("beta", True)),
+        )
+
+    if name == "google_finance_enumerate_chart_intervals":
+        mapping = await client.get_mapping(page_path=quote_page_path(
+            str(arguments["symbol"]), str(arguments["exchange"]), beta=bool(arguments.get("beta", True)),
+        ))
+        return {"source_path": mapping.source_path, "chart_intervals": chart_datasets(mapping)}
+
+    if name == "google_finance_test_rpc":
+        rpc_id = str(arguments["rpc_id"])
+        results = await client.batch_call(
+            [{"id": rpc_id, "request": arguments["request"]}],
+            source_path=str(arguments.get("source_path", DEFAULT_SOURCE_PATH)),
+            batchexecute_url=_batchexecute_url_from_endpoint_family(arguments.get("endpoint_family")),
+            hl=str(arguments.get("hl", "en")), gl=str(arguments.get("gl", "us")),
+        )
+        matching = [result for result in results if result["id"] == rpc_id]
+        return {"rpc_id": rpc_id, "frame_received": bool(matching), "results": matching}
+
     if name == "google_finance_refresh_mapping":
         mapping = await client.get_mapping(
             page_path=str(arguments.get("page_path", DEFAULT_SOURCE_PATH)),
